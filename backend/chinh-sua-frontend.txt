@@ -1,0 +1,177 @@
+Dashboard( tạm ổn)
+THIẾU các mục khác như sau:
+    phần hệ thống khai báo các thông tin:
+        Thong tin thuê bao phần mềm( update sau)
+        Khai báo năm tài chính
+            Năm tài chính/Ngày đầu năm/Ngày kết thúc /Ngày khóa số liệu/Mô tả /Không sử dụng      
+        Danh mục ngoại tệ
+            mã ngoại tệ/tên ngoại tệ/không sử dụng/ngày tạo/người tạo/ngày sửa/người sửa
+        Khai báo man hình nhập chứng từ:
+            -Mã CT và Tên CT
+        Thiết lập tham số hệ thống  
+            SL-Hệ thống
+                Tên tham số/giá trị/mô tả
+            HK-Hộ kinh doanh
+                Tên tham số/giá trị/miêu tả
+            Invoice-hóa đơn điện tử
+                tên tham số/giá trị/miêu tả
+        Thông tin doanh nghiệp
+            tên công ty/địa chỉ/mã số thuế/giám độc(đại diện hộ kinh doanh)/kế toán trưởng/thủ quỷ/điện thoại/fax/email/ngân hàng/số tài khoản/chế độ kế toán
+        đánh lại số chứng từ
+            loại chứng từ(BL1-bán lẻ, TTG-thu tiền gửi,CTG-chi tiền gửi,PT-phiếu thu,PC-phiếu chi,HDDV-hóa đơn bán hàng hóa dịch vụ,PN-phiếu nhập)/kỳ thực hiện"từ tháng đến tháng".
+        Danh sách người dử dụng
+            update sau
+        Ghi lại chứng từ
+            loại chứng từ(BL1-bán lẻ, TTG-thu tiền gửi,CTG-chi tiền gửi,PT-phiếu thu,PC-phiếu chi,HDDV-hóa đơn bán hàng hóa dịch vụ,PN-phiếu nhập)/kỳ thực hiện.
+    Danh mục( còn thiếu các chức năng sau)
+        danh mục giá bán
+            Ngày áp dụng 
+            Mã hàng 
+            Tên vật tư 
+            Đơn vị tính 
+            Giá bán 
+            Mã ngoại tệ
+        Danh mục đơn vị tính
+            Mã đơn vị tính 
+            Tên đơn vị tính 
+            Không sử dụng 
+        Danh mục kho
+            Mã kho 
+            Tên kho 
+            Địa chỉ 
+            Người liên hệ 
+            Điện thoại 
+            Không sử dụng 
+        Danh mục khoản mục Phí
+            Mã phí 
+            Tên phí 
+            Không sử dụng
+        Danh mục quỹ
+            Mã quỹ 
+            Tên quỹ 
+            Số tài khoản ngân hàng 
+            Nơi mở tài khoản 
+            Loại quỹ 
+            Không sử dụng 
+        Danh mục nhóm ngành tính thuế
+            Mã nhóm 
+            Tên nhóm 
+            % GTGT 
+            % TNN 
+            Không sử dụng 
+        Danh mục mẫu hóa đơn
+            Mẫu hóa đơn 
+            Số seri 
+            Số lượng đăng ký 
+            Ngày đăng ký
+        Định mức thành phẩm
+            Mã SP 
+            Tên SP 
+            Ngày bắt đầu 
+            Ngày kết thúc 
+            Ghi Chú 
+        Danh mục lô
+            Mã lô 
+            Tên lô 
+            Hạn dùng 
+            Không sử dụng 
+        Danh mục nhóm vật tư hàng hóa
+            Mã nhóm vật tư 
+            Tên nhóm vật tư 
+            Cấp 
+            Nhóm mẹ 
+            Không sử dụng
+        Danh mục hợp đồng
+            Mã hợp đồng 
+            Tên hợp đồng 
+            Loại hợp đồng 
+            Số hợp đồng 
+            Ngày hợp đồng 
+            Ngày hết hạn 
+            Giá trị HĐ 
+            Không sử dụng 
+    Số dư
+        Số dư đầu kỳ vậy tự hàng hóa
+            Mã kho 
+            Mã vật tư 
+            Tên vật tư 
+            Đơn vị tính 
+            Số lượng 
+            Giá trị 
+        Số dư đầu kỳ quỹ
+            Mã quỹ 
+            Tên quỹ 
+            Số dư 
+        số dư nghĩa vụ thuế với NSNN
+            Sắc thuế 
+            Số dư thuế phải nộp 
+            Số dư thuế đã nộp 
+        Số dư đầu kỳ lương-bảo hiểm
+            Khoản mục tiền lương 
+            Số dư còn phải trả 
+        Số dư đầu kỳ công nợ
+            Số dư đầu kỳ( theo năm)
+            Loại quỹ công nợ( dropdown: Công nợ phải thu/công nợ phải trả)
+            Loại quỹ công nợ 
+            Mã khách hàng/NCC 
+            Tên khách hàng/NCC 
+            Dư nợ 
+            Dư có 
+        Chuyển tồn kho sang năm sau
+            Ngày cuối năm thực hiện ( calendar)
+            mã kho( dropdown)
+        Chuyển số dư săng năm sau
+            Ngày cuôi năm thực hiện ( calendar)
+  Chứng từ đổi thành" nghiệp vụ"
+    Phiếu thu( đã có)
+    Phiếu chi(đã có)
+    Báo có-thu tiền gửi(đã có)      
+    Báo nợ-Chi tiền gửi (đã có)
+    Phiếu nhập mua hàng
+        Ngày CTừ 
+        Số CTừ 
+        Hình thức thanh toán 
+        Mã NCC 
+        Tên nhà cung cấp 
+        Người giao dịch 
+        Diễn giải 
+        Số H.đơn 
+        Ngày H.đơn 
+        Tổng tiền hàng 
+        Tiền thuế 
+        Tổng thanh toán 
+    Phiếu bán hàng
+        Ngày CTừ 
+        Số CTừ 
+        Số Seri 
+        Số hóa đơn 
+        Hình thức thanh toán 
+        Trạng thái 
+        Mã KH 
+        Tên KH 
+        Thành tiền 
+        Thanh toán 
+        Diễn giải 
+    Phiếu bán lẻ
+        Ngày CTừ 
+        Số CTừ 
+        Trạng thái HĐĐT 
+        Ký hiệu HĐ 
+        Số hóa đơn 
+        Khách hàng 
+        Diễn giải 
+        Số lượng 
+        Tổng tiền thanh toán 
+        Ngày tạo 
+        Người tạo 
+    Phiếu nhập kho( đã có)
+    Phiếu xuất kho (đã có)
+    Chứng từ thành toán tiền lương(đac có)
+    Tính giá tồn kho (đã có)
+        cách tính( AGV/FIFO)
+        Kỳ tính( từ tháng đến thàng) "calendar"
+        Mã kho
+        Mã vật tư SP
+    xuất báo cáo là 1 tabs riêng
+
+thiết kế theo kiểu Hierarchical Navigation (Điều hướng phân cấp) nhé
