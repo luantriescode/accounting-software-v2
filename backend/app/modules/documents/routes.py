@@ -5,6 +5,7 @@ FIX: Cập nhật để dùng field names mới (tiếng Việt) match frontend
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database import get_db
+import json
 from app.modules.documents.models import (
     Document, Receipt, Payment, BankStatement,
     SalesOrder, RetailOrder, PurchaseOrderItem, SalesOrderItem, RetailOrderItem
@@ -246,9 +247,20 @@ def get_bao_no(db: Session = Depends(get_db)):
 
 
 # ============ PHIẾU NHẬP MUA ============
+
 @router.post("/documents/phieu-nhap-mua", response_model=PhieuNhapMuaResponse, status_code=201)
 def create_phieu_nhap_mua(data: PhieuNhapMuaCreate, db: Session = Depends(get_db)):
     total_amount = sum(item.SoLuong * item.DonGia for item in data.DanhSachHang)
+
+    # Dùng json.dumps thay vì f-string để tránh lỗi
+    meta = json.dumps({
+        "supplier_id": data.MaNCC,
+        "dien_giai": data.DienGiai or "",
+        "so_hd": data.SoHD or "",
+        "ngay_hd": str(data.NgayHD) if data.NgayHD else "",
+        "nguoi_gd": data.NguoiGD or "",
+        "hinh_thuc_tt": data.HinhThucTT or ""
+    })
 
     doc = Document(
         document_type="PNM",
@@ -256,7 +268,7 @@ def create_phieu_nhap_mua(data: PhieuNhapMuaCreate, db: Session = Depends(get_db
         document_date=data.NgayCT,
         period_id=data.MaKyKeToan,
         total_amount=total_amount,
-        description=data.DienGiai,
+        description=meta,
         status="DRAFT"
     )
     db.add(doc)
@@ -284,21 +296,28 @@ def create_phieu_nhap_mua(data: PhieuNhapMuaCreate, db: Session = Depends(get_db
         TrangThai="DRAFT"
     )
 
+
 @router.get("/documents/phieu-nhap-mua", response_model=list[PhieuNhapMuaResponse])
 def get_phieu_nhap_mua(db: Session = Depends(get_db)):
     docs = db.query(Document).filter(Document.document_type == "PNM").all()
-    return [
-        PhieuNhapMuaResponse(
+    result = []
+    for d in docs:
+        supplier_id = None
+        try:
+            if d.description and d.description.strip().startswith('{'):
+                meta = json.loads(d.description)
+                supplier_id = meta.get('supplier_id')
+        except Exception:
+            pass
+        result.append(PhieuNhapMuaResponse(
             id=d.id,
             SoCT=d.document_number,
             NgayCT=d.document_date,
-            MaNCC=None,
+            MaNCC=supplier_id,
             TongTien=float(d.total_amount),
             TrangThai=d.status
-        ) for d in docs
-    ]
-
-
+        ))
+    return result
 # ============ PHIẾU BÁN HÀNG ============
 @router.post("/documents/phieu-ban-hang", response_model=PhieuBanHangResponse, status_code=201)
 def create_phieu_ban_hang(data: PhieuBanHangCreate, db: Session = Depends(get_db)):

@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react'
 
 const API = 'http://127.0.0.1:8002'
+//const API = 'http://127.0.0.1:8002'
+//const API = 'http://0.0.0.0:8002'
 const fmt = (n) => new Intl.NumberFormat('vi-VN').format(Math.round(n||0)) + ' ₫'
 const fmtN = (n) => new Intl.NumberFormat('vi-VN').format(Math.round(n||0))
 const fmtDate = (d) => { if(!d) return '-'; try{ const p=d.split('T')[0].split('-'); return `${p[2]}/${p[1]}/${p[0]}` }catch{ return d } }
@@ -427,7 +429,7 @@ const PriceList = () => {
 
   const doExport = () => {
     exportExcel('DanhMucGiaBan', 'Giá Bán',
-      ['Ngày ÁD', 'Mã Hàng', 'Tên Vật Tư', 'ĐVT', 'Giá Bán', 'Ngoại Tệ'],
+      ['Ngày Áp Dụng', 'Mã Hàng', 'Tên Vật Tư', 'ĐVT', 'Giá Bán', 'Ngoại Tệ'],
       rows.map(r => [r.ngay, r.ma, r.ten, r.dvt, r.gia, r.nt])
     )
   }
@@ -2210,46 +2212,215 @@ const BankTxn=({type})=>{
 // PHIẾU NHẬP MUA - API: NgayCT, SoCT, MaNCC, SoHD, NgayHD, NguoiGD, DienGiai, MaKyKeToan, HinhThucTT, DanhSachHang[{MaHH,SoLuong,DonGia,GhiChu}]
 const PurchaseInvoice=()=>{
   const [data,loading,load]=useList('/documents/phieu-nhap-mua')
-  const [tab,setTab]=useState('list'); const [suppliers,setSuppliers]=useState([]); const [products,setProducts]=useState([])
+  const [tab,setTab]=useState('list')
+  const [suppliers,setSuppliers]=useState([])
+  const [products,setProducts]=useState([])
   const {options:kyOptions,defaultKy:kyDefault}=useKyKeToan()
-  const [form,setForm]=useState({SoCT:genSoCT('PNM',[]),NgayCT:today(),MaKyKeToan:kyDefault,MaNCC:'',NguoiGD:'',DienGiai:'',SoHD:'',NgayHD:today(),HinhThucTT:'Tiền mặt'})
-  const [rows,setRows]=useState([{product_id:'',quantity:1,unit_price:0,tax_rate:0}])
   const [alert,showAlert,closeAlert]=useAlert()
+
+  const makeNewSoCT = (list) => {
+    const ym = new Date().toISOString().slice(0,7).replace('-','')
+    const pre = `PNM-${ym}`
+    const maxNum = (list||[]).reduce((mx, r) => {
+      const soct = r.SoCT || r.so_chung_tu || ''
+      if (!soct.startsWith(pre)) return mx
+      const parts = soct.split('-')
+      const n = parseInt(parts[parts.length-1]) || 0
+      return n > mx ? n : mx
+    }, 0)
+    return `${pre}-${String(maxNum+1).padStart(3,'0')}`
+  }
+
+  const makeEmptyForm = (list=[]) => ({
+    SoCT: makeNewSoCT(list),
+    NgayCT: today(),
+    MaKyKeToan: kyDefault,
+    MaNCC: '',
+    NguoiGD: '',
+    DienGiai: '',
+    SoHD: '',
+    NgayHD: today(),
+    HinhThucTT: 'Tiền mặt'
+  })
+
+  const emptyRows = () => [{product_id:'',quantity:1,unit_price:0,tax_rate:0}]
+
+  const [form,setForm]=useState(()=>makeEmptyForm())
+  const [rows,setRows]=useState(emptyRows())
   const sf=k=>e=>setForm(f=>({...f,[k]:e.target.value}))
-  useEffect(()=>{ api('GET','/suppliers').then(d=>setSuppliers(Array.isArray(d)?d:[])); api('GET','/products').then(d=>setProducts(Array.isArray(d)?d:[])) },[])
+
+  useEffect(()=>{
+    api('GET','/suppliers').then(d=>setSuppliers(Array.isArray(d)?d:[]))
+    api('GET','/products').then(d=>setProducts(Array.isArray(d)?d:[]))
+  },[])
+
+  // Cập nhật SoCT khi data thay đổi
+  useEffect(()=>{
+    if(!loading){
+      setForm(f=>({...f, SoCT: makeNewSoCT(data)}))
+    }
+  },[data, loading])
+
+  // Helper tên NCC
+  const getNCCLabel = (id) => {
+    if (!id) return '-'
+    const s = suppliers.find(x => String(x.id) === String(id))
+    return s ? `${s.TenNCC||s.name} (${s.MaNCC||s.code})` : `NCC #${id}`
+  }
+
   const save=async()=>{
-    if(!form.SoCT||!form.MaNCC){showAlert('Vui lòng điền: Số CT và Nhà Cung Cấp!','danger');return}
-    const body={NgayCT:form.NgayCT,SoCT:form.SoCT,MaNCC:+form.MaNCC,SoHD:form.SoHD,NgayHD:form.NgayHD,NguoiGD:form.NguoiGD,DienGiai:form.DienGiai,MaKyKeToan:+form.MaKyKeToan,HinhThucTT:form.HinhThucTT,
-      DanhSachHang:rows.filter(r=>r.product_id).map(r=>({MaHH:+r.product_id,SoLuong:+r.quantity,DonGia:+r.unit_price,GhiChu:''}))
+    if(!form.SoCT||!form.MaNCC){
+      showAlert('Vui lòng điền: Số CT và Nhà Cung Cấp!','danger')
+      return
+    }
+    const validRows = rows.filter(r=>r.product_id && +r.quantity > 0)
+    if(!validRows.length){
+      showAlert('Vui lòng thêm ít nhất 1 dòng hàng hóa!','danger')
+      return
+    }
+    const body={
+      NgayCT:form.NgayCT,
+      SoCT:form.SoCT,
+      MaNCC:+form.MaNCC,
+      SoHD:form.SoHD,
+      NgayHD:form.NgayHD,
+      NguoiGD:form.NguoiGD,
+      DienGiai:form.DienGiai,
+      MaKyKeToan:+form.MaKyKeToan,
+      HinhThucTT:form.HinhThucTT,
+      DanhSachHang:validRows.map(r=>({
+        MaHH:+r.product_id,
+        SoLuong:+r.quantity,
+        DonGia:+r.unit_price,
+        GhiChu:''
+      }))
     }
     const r=await api('POST','/documents/phieu-nhap-mua',body)
-    if(r){showAlert('Tạo PNM thành công!');setTab('list');setForm(f=>({...f,SoCT:genSoCT('PNM',data)}));load()}else showAlert('Lỗi tạo PNM!','danger')
+    if(r && !r.__error){
+      showAlert(`Tạo PNM ${form.SoCT} thành công!`)
+      setTab('list')
+      // Load lại rồi reset form + rows
+      const newData = await api('GET','/documents/phieu-nhap-mua')
+      const list = Array.isArray(newData) ? newData : data
+      setForm(makeEmptyForm(list))
+      setRows(emptyRows())
+      load()
+    } else {
+      showAlert('Lỗi: '+(r?.message||'Tạo PNM thất bại'),'danger')
+    }
   }
-  return(<div className="space-y-4">{alert&&<Alert msg={alert.msg} type={alert.type} onClose={closeAlert}/>}
-    <Tabs tabs={[{id:'list',label:'📋 Danh Sách'},{id:'create',label:'+ Tạo Mới'}]} active={tab} onChange={setTab}/>
-    {tab==='list'&&<Card><CH><h3 className="font-bold">🛒 Danh Sách Phiếu Nhập Mua</h3><div className="ml-auto flex gap-2"><Btn v="pdf" size="sm">⬇ PDF</Btn></div></CH>
-      <Tbl data={data} loading={loading} empty="Chưa có PNM" cols={[
-        {k:'SoCT',l:'Số CT',w:'130px',fn:(v,r)=><Code v={v||r.so_phieu}/>},
+
+  const total = rows.reduce((s,r)=>s+(+r.quantity)*(+r.unit_price),0)
+  const totalTax = rows.reduce((s,r)=>s+(+r.quantity)*(+r.unit_price)*((+r.tax_rate||0)/100),0)
+
+  return(<div className="space-y-4">
+    {alert&&<Alert msg={alert.msg} type={alert.type} onClose={closeAlert}/>}
+    <Tabs tabs={[{id:'list',label:'📋 Danh Sách'},{id:'create',label:'+ Tạo Mới'}]}
+      active={tab}
+      onChange={t=>{
+        setTab(t)
+        if(t==='create') setForm(f=>({...f, SoCT: makeNewSoCT(data)}))
+      }}/>
+
+    {tab==='list'&&<Card><CH>
+      <h3 className="font-bold">🛒 Danh Sách Phiếu Nhập Mua</h3>
+      <div className="ml-auto flex gap-2">
+        <Btn v="pdf" size="sm">⬇ PDF</Btn>
+        <Btn v="excel" size="sm">⬇ Excel</Btn>
+      </div>
+    </CH>
+      <Tbl data={data} loading={loading} empty="Chưa có phiếu nhập mua" cols={[
+        {k:'SoCT',l:'Số CT',w:'150px',fn:(v,r)=><Code v={v||r.so_phieu}/>},
         {k:'NgayCT',l:'Ngày CT',w:'100px',fn:(v,r)=>fmtDate(v||r.ngay_phieu)},
-        {k:'MaNCC',l:'Mã NCC',w:'80px'},{k:'TongTien',l:'Tổng TT',r:true,fn:(v,r)=>fmt(v||r.TongTien||0)},
-        {k:'TrangThai',l:'TT',w:'80px',fn:(v,r)=><Badge v="warning">{v||r.trang_thai||'DRAFT'}</Badge>},
-      ]}/></Card>}
-    {tab==='create'&&<Card><CH><h3 className="font-bold">🛒 Tạo Phiếu Nhập Mua</h3></CH>
+        {k:'MaNCC',l:'Nhà Cung Cấp',fn:(v,r)=>{
+          const id = v ?? r.supplier_id ?? r.MaNCC
+          return <span className="font-medium">{getNCCLabel(id)}</span>
+        }},
+        {k:'TongTien',l:'Tổng TT',w:'130px',r:true,
+          fn:(v,r)=><span className="font-semibold text-blue-700">{fmt(v||r.TongTien||0)}</span>
+        },
+        {k:'TrangThai',l:'TT',w:'90px',
+          fn:(v,r)=><Badge v={v==='POSTED'?'success':'warning'}>{v||r.trang_thai||'DRAFT'}</Badge>
+        },
+      ]}/>
+    </Card>}
+
+    {tab==='create'&&<Card><CH>
+      <h3 className="font-bold">🛒 Tạo Phiếu Nhập Mua</h3>
+    </CH>
       <CB>
+        {/* Header */}
         <div className="grid grid-cols-3 gap-3 mb-4">
-          <Inp label="Ngày CT (NgayCT)" req type="date" value={form.NgayCT} onChange={sf('NgayCT')}/>
-          <Inp label="Số CT (SoCT)" req value={form.SoCT} onChange={sf('SoCT')} hint="Tự sinh, có thể sửa"/>
-          <Sel label="Kỳ Kế Toán" req value={form.MaKyKeToan} onChange={sf('MaKyKeToan')} options={kyOptions}/>
-          <Sel label="Hình Thức TT" value={form.HinhThucTT} onChange={sf('HinhThucTT')} options={['Tiền mặt','Chuyển khoản','Thẻ']}/>
-          <div className="col-span-2"><Sel label="Nhà Cung Cấp (MaNCC)" req value={form.MaNCC} onChange={sf('MaNCC')} options={suppliers.map(s=>({value:s.id,label:`${s.MaNCC||s.code} - ${s.TenNCC||s.name}`}))}/></div>
-          <Inp label="Người Giao Dịch (NguoiGD)" value={form.NguoiGD} onChange={sf('NguoiGD')}/>
-          <Inp label="Số HĐ (SoHD)" value={form.SoHD} onChange={sf('SoHD')}/><Inp label="Ngày HĐ (NgayHD)" type="date" value={form.NgayHD} onChange={sf('NgayHD')}/>
-          <div className="col-span-3"><Inp label="Diễn Giải (DienGiai)" value={form.DienGiai} onChange={sf('DienGiai')}/></div>
+          <Inp label="Số CT (SoCT)" req value={form.SoCT} onChange={sf('SoCT')}
+            hint="Tự sinh, có thể sửa"/>
+          <Inp label="Ngày CT (NgayCT)" req type="date" value={form.NgayCT}
+            onChange={sf('NgayCT')}/>
+          <Sel label="Kỳ Kế Toán" req value={form.MaKyKeToan}
+            onChange={sf('MaKyKeToan')} options={kyOptions}/>
+
+          <div className="col-span-2">
+            <Sel label="Nhà Cung Cấp (MaNCC)" req value={form.MaNCC}
+              onChange={sf('MaNCC')}
+              options={suppliers.map(s=>({
+                value: s.id,
+                label: `${s.TenNCC||s.name} (${s.MaNCC||s.code})`
+              }))}/>
+          </div>
+          <Sel label="Hình Thức TT" value={form.HinhThucTT}
+            onChange={sf('HinhThucTT')}
+            options={['Tiền mặt','Chuyển khoản','Thẻ']}/>
+
+          <Inp label="Số HĐ (SoHD)" value={form.SoHD} onChange={sf('SoHD')}
+            placeholder="Số hóa đơn NCC cấp"/>
+          <Inp label="Ngày HĐ (NgayHD)" type="date" value={form.NgayHD}
+            onChange={sf('NgayHD')}/>
+          <Inp label="Người Giao Dịch (NguoiGD)" value={form.NguoiGD}
+            onChange={sf('NguoiGD')}/>
+
+          <div className="col-span-3">
+            <Inp label="Diễn Giải (DienGiai)" value={form.DienGiai}
+              onChange={sf('DienGiai')}/>
+          </div>
         </div>
-        <p className="text-xs font-semibold text-gray-600 mb-1">Danh Sách Hàng Hóa (DanhSachHang):</p>
-        <DetailTbl rows={rows} setRows={setRows} products={products} color="blue" hasTax={true}/>
+
+        {/* Chi tiết hàng hóa */}
+        <p className="text-xs font-bold text-gray-600 mb-2">
+          Danh Sách Hàng Hóa (DanhSachHang):
+        </p>
+        <DetailTbl rows={rows} setRows={setRows} products={products}
+          color="blue" hasTax={true}/>
+
+        {/* Tổng cộng */}
+        <div className="mt-3 grid grid-cols-2 gap-3">
+          <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex justify-between text-sm">
+              <span className="text-blue-700 font-semibold">Tổng Tiền Hàng:</span>
+              <span className="font-bold font-mono text-blue-800">{fmt(total)}</span>
+            </div>
+            <div className="flex justify-between text-sm mt-1">
+              <span className="text-orange-600 font-semibold">Tiền Thuế:</span>
+              <span className="font-bold font-mono text-orange-600">{fmt(totalTax)}</span>
+            </div>
+            <div className="flex justify-between text-base mt-2 pt-2 border-t border-blue-200">
+              <span className="text-blue-900 font-bold">Tổng Thanh Toán:</span>
+              <span className="font-bold font-mono text-blue-900">{fmt(total+totalTax)}</span>
+            </div>
+          </div>
+          <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-500 space-y-1">
+            <div>📌 <b>Số HĐ:</b> Số hóa đơn do nhà cung cấp cấp (nhập tay)</div>
+            <div>📌 <b>%Thuế:</b> Nhập % thuế GTGT cho từng dòng hàng</div>
+            <div>📌 <b>Số CT:</b> Tự sinh tăng dần, có thể sửa thủ công</div>
+          </div>
+        </div>
       </CB>
-      <CF><Btn v="outline" onClick={()=>setTab('list')}>Hủy</Btn><Btn v="success" onClick={save}>💾 Lưu & Đóng</Btn></CF>
+      <CF>
+        <Btn v="outline" onClick={()=>{
+          setTab('list')
+          setForm(makeEmptyForm(data))
+          setRows(emptyRows())
+        }}>Hủy</Btn>
+        <Btn v="success" onClick={save}>💾 Lưu & Đóng</Btn>
+      </CF>
     </Card>}
   </div>)
 }
