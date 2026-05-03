@@ -44,6 +44,7 @@ class PhieuChiResponse(BaseModel):
     id: int
     SoCT: str
     NgayCT: date
+    MaNCC: Optional[int] = None
     TienChi: float
     HinhThucTT: str
     DienGiai: Optional[str] = None

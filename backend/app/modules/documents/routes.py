@@ -130,6 +130,7 @@ def get_phieu_chi(db: Session = Depends(get_db)):
             id=p.id,
             SoCT=d.document_number,
             NgayCT=d.document_date,
+            MaNCC=p.supplier_id, 
             TienChi=float(p.amount),
             HinhThucTT=p.payment_method or "",
             DienGiai=p.notes,

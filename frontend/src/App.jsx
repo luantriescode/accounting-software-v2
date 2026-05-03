@@ -1718,35 +1718,111 @@ const LocalCatalog=({title, icon, configKey, cols, modalFields, initForm})=>{
 
 const Receipts=()=>{
   const [data,loading,load]=useList('/documents/phieu-thu')
-  const [tab,setTab]=useState('list'); const [customers,setCustomers]=useState([])
+  const [tab,setTab]=useState('list')
+  const [customers,setCustomers]=useState([])
   const {options:kyOptions,defaultKy:kyDefault}=useKyKeToan()
   const [loaiGDThu,setLoaiGDThu]=useState([])
-  useEffect(()=>{api('GET','/categories/loai-giao-dich-thu').then(d=>{
-    const list=Array.isArray(d)?d:(d?.items||[])
-    setLoaiGDThu(list)
-    if(list.length) setForm(f=>({...f,LoaiGiaoDich:list[0].value||list[0].name||f.LoaiGiaoDich}))
-  })},[]) 
-  const genPT=(l=[])=>({SoCT:genSoCT('PT',l),NgayCT:today(),MaKyKeToan:kyDefault,MaKH:'',TienThu:0,HinhThucTT:'Chuyển khoản',LoaiGiaoDich:'Thu tiền bán hàng',DienGiai:''})
-  const [form,setForm]=useState(()=>genPT())
+  
+  const makeNewSoCT = (list) => {
+    // Tạo số CT mới dựa trên list hiện tại
+    const ym = new Date().toISOString().slice(0,7).replace('-','')
+    const prefix = `PT-${ym}`
+    const maxNum = (list||[]).reduce((mx, r) => {
+      const soct = r.SoCT || r.so_chung_tu || ''
+      if (!soct.startsWith(prefix)) return mx
+      const parts = soct.split('-')
+      const n = parseInt(parts[parts.length-1]) || 0
+      return n > mx ? n : mx
+    }, 0)
+    return `${prefix}-${String(maxNum+1).padStart(3,'0')}`
+  }
+
+  const makeEmptyForm = (list=[]) => ({
+    SoCT: makeNewSoCT(list),
+    NgayCT: today(),
+    MaKyKeToan: kyDefault,
+    MaKH: '',          // customer ID (số) - dùng để gửi API
+    TienThu: 0,
+    HinhThucTT: 'Chuyển khoản',
+    LoaiGiaoDich: '',
+    DienGiai: ''
+  })
+
+  const [form,setForm]=useState(()=>makeEmptyForm())
   const [alert,showAlert,closeAlert]=useAlert()
   const sf=k=>e=>setForm(f=>({...f,[k]:e.target.value}))
-  useEffect(()=>{api('GET','/customers').then(d=>setCustomers(Array.isArray(d)?d:[]))},[])
+
+  useEffect(()=>{
+    api('GET','/categories/loai-giao-dich-thu').then(d=>{
+      const list=Array.isArray(d)?d:(d?.items||[])
+      setLoaiGDThu(list)
+      if(list.length) setForm(f=>({...f,LoaiGiaoDich:f.LoaiGiaoDich||list[0].value||list[0].name||''}))
+    })
+    api('GET','/customers').then(d=>setCustomers(Array.isArray(d)?d:[]))
+  },[])
+
+  // Khi data load xong, cập nhật SoCT nếu form đang trống
+  useEffect(()=>{
+    if(tab==='create' && !loading) {
+      setForm(f=>({...f, SoCT: makeNewSoCT(data)}))
+    }
+  },[data, loading])
+
   const save=async()=>{
-    if(!form.SoCT||!form.MaKH||!+form.TienThu){showAlert('Vui lòng điền: Số CT, Khách Hàng, Số Tiền!','danger');return}
-    const body={NgayCT:form.NgayCT,SoCT:form.SoCT,LoaiGiaoDich:form.LoaiGiaoDich,TienThu:+form.TienThu,DienGiai:form.DienGiai,MaKH:+form.MaKH,MaKyKeToan:+form.MaKyKeToan,HinhThucTT:form.HinhThucTT}
+    if(!form.SoCT||!form.MaKH||!+form.TienThu){
+      showAlert('Vui lòng điền: Số CT, Khách Hàng, Số Tiền!','danger')
+      return
+    }
+    const body={
+      NgayCT:form.NgayCT,
+      SoCT:form.SoCT,
+      LoaiGiaoDich:form.LoaiGiaoDich,
+      TienThu:+form.TienThu,
+      DienGiai:form.DienGiai,
+      MaKH:+form.MaKH,
+      MaKyKeToan:+form.MaKyKeToan,
+      HinhThucTT:form.HinhThucTT
+    }
     const r=await api('POST','/documents/phieu-thu',body)
-    if(r){showAlert(`Tạo phiếu thu ${form.SoCT} thành công!`);setTab('list');setForm(initPT([...data,r]));load()}
-    else showAlert('Lỗi tạo phiếu thu! Kiểm tra Số CT đã tồn tại chưa.','danger')
+    if(r && !r.__error){
+      showAlert(`Tạo phiếu thu ${form.SoCT} thành công!`)
+      setTab('list')
+      // Load lại data, sau đó tạo số CT mới
+      const newData = await api('GET','/documents/phieu-thu')
+      const list = Array.isArray(newData) ? newData : data
+      setForm(makeEmptyForm(list))
+      load()
+    } else {
+      showAlert('Lỗi tạo phiếu thu! '+(r?.message||'Kiểm tra Số CT đã tồn tại chưa.'),'danger')
+    }
   }
+
+  // Helper: tìm tên KH theo ID
+  const getKHLabel = (id) => {
+    const c = customers.find(x => String(x.id) === String(id))
+    return c ? `${c.TenKH||c.name}` : `KH #${id}`
+  }
+
   return(<div className="space-y-4">{alert&&<Alert msg={alert.msg} type={alert.type} onClose={closeAlert}/>}
-    <Tabs tabs={[{id:'list',label:'📋 Danh Sách'},{id:'create',label:'+ Tạo Mới'}]} active={tab} onChange={setTab}/>
+    <Tabs tabs={[{id:'list',label:'📋 Danh Sách'},{id:'create',label:'+ Tạo Mới'}]} active={tab} 
+      onChange={t=>{
+        setTab(t)
+        // Khi chuyển sang tab tạo mới, refresh số CT
+        if(t==='create') setForm(f=>({...f, SoCT: makeNewSoCT(data)}))
+      }}/>
     {tab==='list'&&<Card><CH><h3 className="font-bold">💰 Danh Sách Phiếu Thu</h3>
       <div className="ml-auto flex gap-2"><Btn v="pdf" size="sm">⬇ PDF</Btn><Btn v="excel" size="sm">⬇ Excel</Btn></div></CH>
       <Tbl data={data} loading={loading} empty="Chưa có phiếu thu" cols={[
         {k:'SoCT',l:'Số Phiếu',w:'130px',fn:(v,r)=><Code v={v||r.so_phieu}/>},
         {k:'NgayCT',l:'Ngày',w:'100px',fn:(v,r)=>fmtDate(v||r.ngay_phieu)},
-        {k:'MaKH',l:'Mã KH',w:'80px'},{k:'TienThu',l:'Số Tiền',r:true,fn:(v,r)=><span className="text-green-700 font-semibold">{fmt(v||r.so_tien||0)}</span>},
-        {k:'HinhThucTT',l:'HTTT',w:'120px',fn:(v,r)=>v||r.hinh_thuc_thanh_toan||'-'},{k:'DienGiai',l:'Diễn Giải',fn:(v,r)=>v||r.ghi_chu||'-'},
+        // Hiển thị tên KH thay vì ID
+        {k:'MaKH',l:'Khách Hàng',fn:(v,r)=>{
+          const id = v || r.customer_id
+          return <span className="font-medium">{getKHLabel(id)}</span>
+        }},
+        {k:'TienThu',l:'Số Tiền',r:true,fn:(v,r)=><span className="text-green-700 font-semibold">{fmt(v||r.so_tien||0)}</span>},
+        {k:'HinhThucTT',l:'HTTT',w:'120px',fn:(v,r)=>v||r.hinh_thuc_thanh_toan||'-'},
+        {k:'DienGiai',l:'Diễn Giải',fn:(v,r)=>v||r.ghi_chu||'-'},
         {k:'TrangThai',l:'TT',w:'80px',fn:(v,r)=><Badge v={v==='POSTED'||r.trang_thai==='POSTED'?'success':'warning'}>{v||r.trang_thai||'DRAFT'}</Badge>},
       ]}/></Card>}
     {tab==='create'&&<Card><CH><h3 className="font-bold">💰 Tạo Phiếu Thu Mới</h3></CH>
@@ -1754,7 +1830,13 @@ const Receipts=()=>{
         <Inp label="Số CT (SoCT)" req value={form.SoCT} onChange={sf('SoCT')} placeholder="PT-202605-001" hint="Tự sinh, có thể sửa"/>
         <Inp label="Ngày CT (NgayCT)" req type="date" value={form.NgayCT} onChange={sf('NgayCT')}/>
         <Sel label="Kỳ Kế Toán" req value={form.MaKyKeToan} onChange={sf('MaKyKeToan')} options={kyOptions}/>
-        <div className="col-span-2"><Sel label="Khách Hàng (MaKH)" req value={form.MaKH} onChange={sf('MaKH')} options={customers.map(c=>({value:c.id,label:`${c.MaKH||c.code} - ${c.TenKH||c.name}`}))}/></div>
+        <div className="col-span-2">
+          <Sel label="Khách Hàng" req value={form.MaKH} onChange={sf('MaKH')} 
+            options={customers.map(c=>({
+              value: c.id,
+              label: `${c.TenKH||c.name} (${c.MaKH||c.code})`
+            }))}/>
+        </div>
         <Sel label="Hình Thức TT (HinhThucTT)" value={form.HinhThucTT} onChange={sf('HinhThucTT')} options={['Tiền mặt','Chuyển khoản','Thẻ']}/>
         <Inp label="Số Tiền Thu (TienThu)" req type="number" value={form.TienThu} onChange={sf('TienThu')}/>
         <Sel label="Loại Giao Dịch" value={form.LoaiGiaoDich} onChange={sf('LoaiGiaoDich')} options={loaiGDThu.map(x=>({value:x.value||x.name,label:x.label||x.name}))}/>
@@ -1772,35 +1854,117 @@ const Receipts=()=>{
 // PHIẾU CHI - API: NgayCT, SoCT, TienChi, DienGiai, MaNCC, MaKyKeToan, HinhThucTT
 const Payments=()=>{
   const [data,loading,load]=useList('/documents/phieu-chi')
-  const [tab,setTab]=useState('list'); const [suppliers,setSuppliers]=useState([])
+  const [tab,setTab]=useState('list')
+  const [suppliers,setSuppliers]=useState([])
   const {options:kyOptions,defaultKy:kyDefault}=useKyKeToan()
   const [loaiGDChi,setLoaiGDChi]=useState([])
-  useEffect(()=>{api('GET','/categories/loai-giao-dich-chi').then(d=>{
-    const list=Array.isArray(d)?d:[]
-    setLoaiGDChi(list)
-    if(list.length) setForm(f=>({...f,LoaiGiaoDich:list[0].value||list[0].name||f.LoaiGiaoDich}))
-  })},[]) 
-  const genPC=(l=[])=>({SoCT:genSoCT('PC',l),NgayCT:today(),MaKyKeToan:kyDefault,MaNCC:'',TienChi:0,HinhThucTT:'Chuyển khoản',LoaiGiaoDich:'Chi tiền mua hàng',DienGiai:''})
-  const [form,setForm]=useState(()=>genPC())
+
+  const makeNewSoCT = (list) => {
+    const ym = new Date().toISOString().slice(0,7).replace('-','')
+    const prefix = `PC-${ym}`
+    const maxNum = (list||[]).reduce((mx, r) => {
+      const soct = r.SoCT || r.so_chung_tu || ''
+      if (!soct.startsWith(prefix)) return mx
+      const parts = soct.split('-')
+      const n = parseInt(parts[parts.length-1]) || 0
+      return n > mx ? n : mx
+    }, 0)
+    return `${prefix}-${String(maxNum+1).padStart(3,'0')}`
+  }
+
+  const makeEmptyForm = (list=[]) => ({
+    SoCT: makeNewSoCT(list),
+    NgayCT: today(),
+    MaKyKeToan: kyDefault,
+    MaNCC: '',
+    TienChi: 0,
+    HinhThucTT: 'Chuyển khoản',
+    LoaiGiaoDich: '',
+    DienGiai: ''
+  })
+
+  const [form,setForm]=useState(()=>makeEmptyForm())
   const [alert,showAlert,closeAlert]=useAlert()
   const sf=k=>e=>setForm(f=>({...f,[k]:e.target.value}))
-  useEffect(()=>{api('GET','/suppliers').then(d=>setSuppliers(Array.isArray(d)?d:[]))},[])
+
+
+  useEffect(()=>{
+    api('GET','/suppliers').then(d=>{
+      const list = Array.isArray(d)?d:[]
+      setSuppliers(list)
+      console.log('Suppliers loaded:', list.length) // debug
+    })
+    api('GET','/categories/loai-giao-dich-chi').then(d=>{
+      const list=Array.isArray(d)?d:(d?.items||[])
+      setLoaiGDChi(list)
+      if(list.length) setForm(f=>({...f,LoaiGiaoDich:f.LoaiGiaoDich||list[0].value||list[0].name||''}))
+    })
+  },[])
+  // Khi data load xong, cập nhật SoCT
+  useEffect(()=>{
+    if(tab==='create' && !loading){
+      setForm(f=>({...f, SoCT: makeNewSoCT(data)}))
+    }
+  },[data, loading])
+
   const save=async()=>{
-    if(!form.SoCT||!+form.TienChi){showAlert('Vui lòng điền: Số CT và Số Tiền!','danger');return}
-    const body={NgayCT:form.NgayCT,SoCT:form.SoCT,LoaiGiaoDich:form.LoaiGiaoDich,TienChi:+form.TienChi,DienGiai:form.DienGiai,MaNCC:form.MaNCC?+form.MaNCC:null,MaKyKeToan:+form.MaKyKeToan,HinhThucTT:form.HinhThucTT}
+    if(!form.SoCT||!+form.TienChi){
+      showAlert('Vui lòng điền: Số CT và Số Tiền!','danger')
+      return
+    }
+    const body={
+      NgayCT:form.NgayCT,
+      SoCT:form.SoCT,
+      LoaiGiaoDich:form.LoaiGiaoDich,
+      TienChi:+form.TienChi,
+      DienGiai:form.DienGiai,
+      MaNCC:form.MaNCC?+form.MaNCC:null,
+      MaKyKeToan:+form.MaKyKeToan,
+      HinhThucTT:form.HinhThucTT
+    }
     const r=await api('POST','/documents/phieu-chi',body)
-    if(r&&!r.__error){showAlert(`Tạo phiếu chi ${form.SoCT} thành công!`);setTab('list');load();setForm(genPC())}
-    else showAlert('Lỗi: '+(r?.message||'Tạo phiếu chi thất bại'),'danger')
+    if(r&&!r.__error){
+      showAlert(`Tạo phiếu chi ${form.SoCT} thành công!`)
+      setTab('list')
+      // Load lại data, sau đó tạo số CT mới
+      const newData = await api('GET','/documents/phieu-chi')
+      const list = Array.isArray(newData) ? newData : data
+      setForm(makeEmptyForm(list))
+      load()
+    } else {
+      showAlert('Lỗi: '+(r?.message||'Tạo phiếu chi thất bại'),'danger')
+    }
   }
+
+  // Helper: tìm tên NCC theo ID
+  const getNCCLabel = (id) => {
+    if (!id) return '-'
+    const s = suppliers.find(x => String(x.id) === String(id))
+    if (s) return `${s.TenNCC||s.name} (${s.MaNCC||s.code})`
+    return `NCC #${id}`  // fallback khi suppliers chưa load
+  }
+
   return(<div className="space-y-4">{alert&&<Alert msg={alert.msg} type={alert.type} onClose={closeAlert}/>}
-    <Tabs tabs={[{id:'list',label:'📋 Danh Sách'},{id:'create',label:'+ Tạo Mới'}]} active={tab} onChange={setTab}/>
+    <Tabs tabs={[{id:'list',label:'📋 Danh Sách'},{id:'create',label:'+ Tạo Mới'}]} active={tab}
+      onChange={t=>{
+        setTab(t)
+        // Khi chuyển sang tab tạo mới, refresh số CT
+        if(t==='create') setForm(f=>({...f, SoCT: makeNewSoCT(data)}))
+      }}/>
     {tab==='list'&&<Card><CH><h3 className="font-bold">💸 Danh Sách Phiếu Chi</h3>
       <div className="ml-auto flex gap-2"><Btn v="pdf" size="sm">⬇ PDF</Btn><Btn v="excel" size="sm">⬇ Excel</Btn></div></CH>
       <Tbl data={data} loading={loading} empty="Chưa có phiếu chi" cols={[
         {k:'SoCT',l:'Số Phiếu',w:'130px',fn:(v,r)=><Code v={v||r.so_phieu}/>},
         {k:'NgayCT',l:'Ngày',w:'100px',fn:(v,r)=>fmtDate(v||r.ngay_phieu)},
+        // Hiển thị tên NCC thay vì ID
+        {k:'MaNCC',l:'Nhà Cung Cấp',fn:(v,r)=>{
+          // API có thể trả về MaNCC hoặc supplier_id
+          const id = v ?? r.supplier_id ?? r.MaNCC
+          return <span className="font-medium">{getNCCLabel(id)}</span>
+        }},
         {k:'TienChi',l:'Số Tiền',r:true,fn:(v,r)=><span className="text-red-700 font-semibold">{fmt(v||r.so_tien||0)}</span>},
-        {k:'HinhThucTT',l:'HTTT',w:'120px'},{k:'DienGiai',l:'Diễn Giải'},
+        {k:'HinhThucTT',l:'HTTT',w:'120px',fn:(v,r)=>v||r.hinh_thuc_thanh_toan||'-'},
+        {k:'DienGiai',l:'Diễn Giải',fn:(v,r)=>v||r.ghi_chu||'-'},
         {k:'TrangThai',l:'TT',w:'80px',fn:(v,r)=><Badge v="warning">{v||r.trang_thai||'DRAFT'}</Badge>},
       ]}/></Card>}
     {tab==='create'&&<Card><CH><h3 className="font-bold">💸 Tạo Phiếu Chi Mới</h3></CH>
@@ -1808,7 +1972,13 @@ const Payments=()=>{
         <Inp label="Số CT (SoCT)" req value={form.SoCT} onChange={sf('SoCT')} placeholder="PC-202605-001" hint="Tự sinh, có thể sửa"/>
         <Inp label="Ngày CT (NgayCT)" req type="date" value={form.NgayCT} onChange={sf('NgayCT')}/>
         <Sel label="Kỳ Kế Toán" req value={form.MaKyKeToan} onChange={sf('MaKyKeToan')} options={kyOptions}/>
-        <div className="col-span-2"><Sel label="Nhà Cung Cấp (MaNCC)" value={form.MaNCC} onChange={sf('MaNCC')} options={suppliers.map(s=>({value:s.id,label:`${s.MaNCC||s.code} - ${s.TenNCC||s.name}`}))}/></div>
+        <div className="col-span-2">
+          <Sel label="Nhà Cung Cấp (MaNCC)" value={form.MaNCC} onChange={sf('MaNCC')}
+            options={suppliers.map(s=>({
+              value: s.id,
+              label: `${s.TenNCC||s.name} (${s.MaNCC||s.code})`
+            }))}/>
+        </div>
         <Sel label="Hình Thức TT" value={form.HinhThucTT} onChange={sf('HinhThucTT')} options={['Tiền mặt','Chuyển khoản','Thẻ']}/>
         <Inp label="Số Tiền Chi (TienChi)" req type="number" value={form.TienChi} onChange={sf('TienChi')}/>
         <Sel label="Loại Giao Dịch" value={form.LoaiGiaoDich} onChange={sf('LoaiGiaoDich')} options={loaiGDChi.map(x=>({value:x.value||x.name,label:x.label||x.name}))}/>
@@ -1827,44 +1997,212 @@ const Payments=()=>{
 const BankTxn=({type})=>{
   const isTTG=type==='nv-ttg'
   const [data,loading,load]=useList(isTTG?'/banking/ttg':'/banking/ctg')
-  const [modal,setModal]=useState(false); const [accounts,setAccounts]=useState([]); const [ltypes,setLtypes]=useState([])
-  const [form,setForm]=useState({tk_id:'',loai_giao_dich:'',so_chung_tu:genSoCT(type==='nv-ttg'?'TTG':'CTG',[]),ngay_chung_tu:today(),so_tien_thu:0,so_tien_chi:0,noi_dung:'',period_id:1})
+  const [modal,setModal]=useState(false)
+  const [accounts,setAccounts]=useState([])
+  const [ltypes,setLtypes]=useState([])
+  const [customers,setCustomers]=useState([])
+  const [suppliers,setSuppliers]=useState([])
   const [alert,showAlert,closeAlert]=useAlert()
+
+  const prefix = isTTG ? 'TTG' : 'CTG'
+
+  const makeNewSoCT = (list) => {
+    const ym = new Date().toISOString().slice(0,7).replace('-','')
+    const pre = `${prefix}-${ym}`
+    const maxNum = (list||[]).reduce((mx, r) => {
+      const soct = r.so_chung_tu || ''
+      if (!soct.startsWith(pre)) return mx
+      const parts = soct.split('-')
+      const n = parseInt(parts[parts.length-1]) || 0
+      return n > mx ? n : mx
+    }, 0)
+    return `${pre}-${String(maxNum+1).padStart(3,'0')}`
+  }
+
+  const makeEmptyForm = (list=[]) => ({
+    tk_id: '',
+    loai_giao_dich: '',
+    so_chung_tu: makeNewSoCT(list),
+    ngay_chung_tu: today(),
+    so_tien_thu: 0,
+    so_tien_chi: 0,
+    noi_dung: '',
+    period_id: 1
+  })
+
+  const [form,setForm]=useState(()=>makeEmptyForm())
   const sf=k=>e=>setForm(f=>({...f,[k]:e.target.value}))
+
   useEffect(()=>{
     api('GET','/banking/accounts').then(d=>setAccounts(Array.isArray(d)?d:[]))
     api('GET',isTTG?'/banking/loai-giao-dich-thu':'/banking/loai-giao-dich-chi').then(d=>{
       const list=Array.isArray(d)?d:(d?.items||[])
       setLtypes(list)
-      if(list.length) setForm(f=>({...f,loai_giao_dich:f.loai_giao_dich||list[0].value||list[0].name||''}))
+      if(list.length) setForm(f=>({
+        ...f,
+        loai_giao_dich: f.loai_giao_dich||list[0].value||list[0].name||''
+      }))
     })
+    if(isTTG){
+      api('GET','/customers').then(d=>setCustomers(Array.isArray(d)?d:[]))
+    } else {
+      api('GET','/suppliers').then(d=>setSuppliers(Array.isArray(d)?d:[]))
+    }
   },[type])
-  const save=async()=>{
-    const r=await api('POST',isTTG?'/banking/ttg':'/banking/ctg',{...form,tk_id:+form.tk_id,period_id:+form.period_id,...(isTTG?{so_tien_thu:+form.so_tien_thu}:{so_tien_chi:+form.so_tien_chi})})
-    if(r){showAlert('Thành công!');setModal(false);setForm(f=>({...f,so_chung_tu:genSoCT(isTTG?'TTG':'CTG',data)}));load()}else showAlert('Lỗi!','danger')
+
+  // Khi data load xong, cập nhật SoCT
+  useEffect(()=>{
+    if(!loading){
+      setForm(f=>({...f, so_chung_tu: makeNewSoCT(data)}))
+    }
+  },[data, loading])
+
+  // Helper tên TK
+  const getTKLabel = (id) => {
+    const a = accounts.find(x => String(x.id) === String(id))
+    return a ? `${a.ten_tk} (${a.ma_tk})` : (id ? `TK #${id}` : '-')
   }
-  return(<div className="space-y-4">{alert&&<Alert msg={alert.msg} type={alert.type} onClose={closeAlert}/>}
+
+  // Helper tên KH/NCC
+  const getEntityLabel = (id) => {
+    if (!id) return '-'
+    if (isTTG) {
+      const c = customers.find(x => String(x.id) === String(id))
+      return c ? `${c.TenKH||c.name}` : `KH #${id}`
+    } else {
+      const s = suppliers.find(x => String(x.id) === String(id))
+      return s ? `${s.TenNCC||s.name}` : `NCC #${id}`
+    }
+  }
+
+  const save=async()=>{
+    if(!form.tk_id){
+      showAlert('Vui lòng chọn Tài Khoản!','danger')
+      return
+    }
+    const soTien = isTTG ? +form.so_tien_thu : +form.so_tien_chi
+    if(!soTien || soTien <= 0){
+      showAlert('Vui lòng nhập Số Tiền lớn hơn 0!','danger')
+      return
+    }
+
+    const body={
+      ...form,
+      tk_id: +form.tk_id,
+      period_id: +form.period_id,
+      ...(isTTG
+        ? {so_tien_thu: +form.so_tien_thu}
+        : {so_tien_chi: +form.so_tien_chi}
+      )
+    }
+
+    const r=await api('POST', isTTG?'/banking/ttg':'/banking/ctg', body)
+    if(r && !r.__error){
+      showAlert(`Tạo ${prefix} ${form.so_chung_tu} thành công!`)
+      setModal(false)
+      // Load lại data, sau đó tạo số CT mới
+      const newData = await api('GET', isTTG?'/banking/ttg':'/banking/ctg')
+      const list = Array.isArray(newData) ? newData : data
+      setForm(makeEmptyForm(list))
+      load()
+    } else {
+      showAlert('Lỗi: '+(r?.message||'Tạo thất bại'),'danger')
+    }
+  }
+
+  return(<div className="space-y-4">
+    {alert&&<Alert msg={alert.msg} type={alert.type} onClose={closeAlert}/>}
     <Card><CH>
-      <h3 className="font-bold">{isTTG?'🏦 Thu Tiền Gửi (TTG)':'🏦 Chi Tiền Gửi (CTG)'}</h3>
-      <div className="ml-auto flex gap-2"><Btn size="sm" onClick={()=>setModal(true)}>+ Tạo Mới</Btn><Btn v="pdf" size="sm">⬇ PDF</Btn></div>
+      <h3 className="font-bold">
+        {isTTG?'🏦 Thu Tiền Gửi (TTG)':'🏦 Chi Tiền Gửi (CTG)'}
+      </h3>
+      <div className="ml-auto flex gap-2">
+        <Btn size="sm" onClick={()=>{
+          // Refresh số CT khi mở modal
+          setForm(f=>({...f, so_chung_tu: makeNewSoCT(data)}))
+          setModal(true)
+        }}>+ Tạo Mới</Btn>
+        <Btn v="pdf" size="sm">⬇ PDF</Btn>
+      </div>
     </CH>
-      <Tbl data={data} loading={loading} empty={`Chưa có ${isTTG?'TTG':'CTG'}`} cols={[
-        {k:'so_chung_tu',l:'Số CT',w:'130px',fn:v=><Code v={v}/>},{k:'ngay_chung_tu',l:'Ngày',w:'100px',fn:v=>fmtDate(v)},
-        {k:'loai_giao_dich',l:'Loại GD'},{k:isTTG?'so_tien_thu':'so_tien_chi',l:'Số Tiền',r:true,fn:v=><span className={`font-semibold ${isTTG?'text-green-700':'text-red-700'}`}>{fmt(v)}</span>},
-        {k:'noi_dung',l:'Nội Dung'},{k:'da_doi_chieu',l:'Đối Chiếu',w:'90px',fn:v=><Badge v={v?'success':'gray'}>{v?'Đã ĐC':'Chưa'}</Badge>},
-        {k:'trang_thai',l:'TT',w:'90px',fn:v=><Badge v={v==='POSTED'?'success':'warning'}>{v||'DRAFT'}</Badge>},
+      <Tbl data={data} loading={loading} empty={`Chưa có ${prefix}`} cols={[
+        {k:'so_chung_tu',l:'Số CT',w:'150px',fn:v=><Code v={v}/>},
+        {k:'ngay_chung_tu',l:'Ngày',w:'100px',fn:v=>fmtDate(v)},
+        {k:'tk_id',l:'Tài Khoản',w:'150px',fn:v=>
+          <span className="text-xs">{getTKLabel(v)}</span>
+        },
+        {k:'loai_giao_dich',l:'Loại GD'},
+        {k: isTTG?'so_tien_thu':'so_tien_chi', l:'Số Tiền', r:true,
+          fn:v=><span className={`font-semibold ${isTTG?'text-green-700':'text-red-700'}`}>
+            {fmt(v)}
+          </span>
+        },
+        {k:'noi_dung',l:'Nội Dung'},
+        {k:'da_doi_chieu',l:'Đối Chiếu',w:'90px',
+          fn:v=><Badge v={v?'success':'gray'}>{v?'Đã ĐC':'Chưa'}</Badge>
+        },
+        {k:'trang_thai',l:'TT',w:'90px',
+          fn:v=><Badge v={v==='POSTED'?'success':'warning'}>{v||'DRAFT'}</Badge>
+        },
       ]}/>
     </Card>
-    <Modal open={modal} onClose={()=>setModal(false)} title={isTTG?'🏦 Tạo TTG':'🏦 Tạo CTG'}>
+
+    <Modal open={modal} onClose={()=>setModal(false)}
+      title={isTTG?'🏦 Tạo Thu Tiền Gửi (TTG)':'🏦 Tạo Chi Tiền Gửi (CTG)'}>
       <div className="grid grid-cols-2 gap-3">
-        <Inp label="Số CT" req value={form.so_chung_tu} onChange={sf('so_chung_tu')} hint="Tự sinh"/>
-        <Inp label="Ngày CT" req type="date" value={form.ngay_chung_tu} onChange={sf('ngay_chung_tu')}/>
-        <Sel label="Tài Khoản NH" req value={form.tk_id} onChange={sf('tk_id')} options={accounts.map(a=>({value:a.id,label:`${a.ma_tk} - ${a.ten_tk}`}))}/>
-        <Sel label="Loại Giao Dịch" value={form.loai_giao_dich} onChange={sf('loai_giao_dich')} options={ltypes.map(t=>({value:t.value||t,label:t.label||t}))}/>
-        <Inp label={isTTG?'Số Tiền Thu':'Số Tiền Chi'} req type="number" value={isTTG?form.so_tien_thu:form.so_tien_chi} onChange={sf(isTTG?'so_tien_thu':'so_tien_chi')}/>
-        <div className="col-span-2"><Inp label="Nội Dung" value={form.noi_dung} onChange={sf('noi_dung')}/></div>
+        <Inp label="Số CT" req value={form.so_chung_tu} onChange={sf('so_chung_tu')}
+          hint="Tự sinh, có thể sửa"/>
+        <Inp label="Ngày CT" req type="date" value={form.ngay_chung_tu}
+          onChange={sf('ngay_chung_tu')}/>
+        <Sel label="Tài Khoản NH" req value={form.tk_id} onChange={sf('tk_id')}
+          options={accounts.map(a=>({
+            value: a.id,
+            label: `${a.ma_tk} - ${a.ten_tk}`
+          }))}/>
+        <Sel label="Loại Giao Dịch" value={form.loai_giao_dich}
+          onChange={sf('loai_giao_dich')}
+          options={ltypes.map(t=>({value:t.value||t.name||t,label:t.label||t.name||t}))}/>
+        <Inp
+          label={isTTG?'Số Tiền Thu':'Số Tiền Chi'}
+          req type="number" min="0"
+          value={isTTG?form.so_tien_thu:form.so_tien_chi}
+          onChange={sf(isTTG?'so_tien_thu':'so_tien_chi')}/>
+        {isTTG
+          ? <Sel label="Khách Hàng" value={form.khach_hang_id||''}
+              onChange={sf('khach_hang_id')}
+              options={customers.map(c=>({
+                value: c.id,
+                label: `${c.TenKH||c.name} (${c.MaKH||c.code})`
+              }))}/>
+          : <Sel label="Nhà Cung Cấp" value={form.supplier_id||''}
+              onChange={sf('supplier_id')}
+              options={suppliers.map(s=>({
+                value: s.id,
+                label: `${s.TenNCC||s.name} (${s.MaNCC||s.code})`
+              }))}/>
+        }
+        <div className="col-span-2">
+          <Inp label="Nội Dung" value={form.noi_dung} onChange={sf('noi_dung')}/>
+        </div>
       </div>
-      <div className="flex justify-end gap-2 mt-4"><Btn v="outline" onClick={()=>setModal(false)}>Hủy</Btn><Btn onClick={save}>💾 Lưu</Btn></div>
+
+      {/* Tổng tiền preview */}
+      <div className={`mt-3 p-3 rounded-lg border flex justify-between items-center
+        ${isTTG?'bg-green-50 border-green-200':'bg-red-50 border-red-200'}`}>
+        <span className={`text-sm font-semibold
+          ${isTTG?'text-green-800':'text-red-800'}`}>
+          {isTTG?'Số Tiền Thu:':'Số Tiền Chi:'}
+        </span>
+        <span className={`text-xl font-bold font-mono
+          ${isTTG?'text-green-700':'text-red-700'}`}>
+          {fmt(isTTG?form.so_tien_thu:form.so_tien_chi)}
+        </span>
+      </div>
+
+      <div className="flex justify-end gap-2 mt-4">
+        <Btn v="outline" onClick={()=>setModal(false)}>Hủy</Btn>
+        <Btn v={isTTG?'success':'danger'} onClick={save}>💾 Lưu</Btn>
+      </div>
     </Modal>
   </div>)
 }
