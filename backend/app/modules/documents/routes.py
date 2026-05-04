@@ -80,7 +80,20 @@ def get_phieu_thu(db: Session = Depends(get_db)):
             TrangThai=d.status
         ) for r, d in rows
     ]
-
+@router.get("/documents/phieu-thu/{doc_id}")
+def get_phieu_thu_detail(doc_id: int, db: Session = Depends(get_db)):
+    r, d = db.query(Receipt, Document).join(
+        Document, Receipt.document_id == Document.id
+    ).filter(Receipt.id == doc_id).first() or (None, None)
+    if not r:
+        raise HTTPException(404, "Không tìm thấy")
+    return {
+        "id": r.id, "SoCT": d.document_number,
+        "NgayCT": str(d.document_date),
+        "MaKH": r.customer_id, "TienThu": float(r.amount),
+        "HinhThucTT": r.payment_method, "DienGiai": r.notes,
+        "TrangThai": d.status
+    }
 
 # ============ PHIẾU CHI ============
 @router.post("/documents/phieu-chi", response_model=PhieuChiResponse, status_code=201)
@@ -138,7 +151,20 @@ def get_phieu_chi(db: Session = Depends(get_db)):
             TrangThai=d.status
         ) for p, d in rows
     ]
-
+@router.get("/documents/phieu-chi/{doc_id}")
+def get_phieu_chi_detail(doc_id: int, db: Session = Depends(get_db)):
+    p, d = db.query(Payment, Document).join(
+        Document, Payment.document_id == Document.id
+    ).filter(Payment.id == doc_id).first() or (None, None)
+    if not p:
+        raise HTTPException(404, "Không tìm thấy")
+    return {
+        "id": p.id, "SoCT": d.document_number,
+        "NgayCT": str(d.document_date),
+        "MaNCC": p.supplier_id, "TienChi": float(p.amount),
+        "HinhThucTT": p.payment_method, "DienGiai": p.notes,
+        "TrangThai": d.status
+    }
 
 # ============ BÁO CÓ ============
 @router.post("/documents/bao-co", response_model=BaoCoResponse, status_code=201)
@@ -318,10 +344,46 @@ def get_phieu_nhap_mua(db: Session = Depends(get_db)):
             TrangThai=d.status
         ))
     return result
+@router.get("/documents/phieu-nhap-mua/{doc_id}")
+def get_phieu_nhap_mua_detail(doc_id: int, db: Session = Depends(get_db)):
+    d = db.query(Document).filter(
+        Document.id == doc_id, Document.document_type == "PNM"
+    ).first()
+    if not d:
+        raise HTTPException(404, "Không tìm thấy")
+    items = db.query(PurchaseOrderItem).filter(
+        PurchaseOrderItem.purchase_order_id == doc_id
+    ).all()
+    meta = {}
+    try:
+        if d.description and d.description.strip().startswith('{'):
+            meta = json.loads(d.description)
+    except Exception:
+        pass
+    return {
+        "id": d.id, "SoCT": d.document_number,
+        "NgayCT": str(d.document_date),
+        "MaNCC": meta.get('supplier_id'), "SoHD": meta.get('so_hd'),
+        "DienGiai": meta.get('dien_giai'), "TongTien": float(d.total_amount or 0),
+        "TrangThai": d.status,
+        "items": [{"product_id": i.product_id, "quantity": i.quantity,
+                   "unit_price": float(i.unit_price),
+                   "total": float(i.quantity * i.unit_price)} for i in items]
+    }
 # ============ PHIẾU BÁN HÀNG ============
 @router.post("/documents/phieu-ban-hang", response_model=PhieuBanHangResponse, status_code=201)
 def create_phieu_ban_hang(data: PhieuBanHangCreate, db: Session = Depends(get_db)):
     total_amount = sum(item.SoLuong * item.DonGia for item in data.DanhSachHang)
+
+    # Lưu customer_id vào description dạng JSON
+    meta = json.dumps({
+        "customer_id": data.MaKH,
+        "dien_giai": data.DienGiai or "",
+        "so_hd": data.SoHD or "",
+        "ngay_hd": str(data.NgayHD) if data.NgayHD else "",
+        "nguoi_gd": data.NguoiGD or "",
+        "hinh_thuc_tt": data.HinhThucTT or ""
+    })
 
     doc = Document(
         document_type="PBH",
@@ -329,7 +391,7 @@ def create_phieu_ban_hang(data: PhieuBanHangCreate, db: Session = Depends(get_db
         document_date=data.NgayCT,
         period_id=data.MaKyKeToan,
         total_amount=total_amount,
-        description=data.DienGiai,
+        description=meta,
         status="DRAFT"
     )
     db.add(doc)
@@ -352,7 +414,7 @@ def create_phieu_ban_hang(data: PhieuBanHangCreate, db: Session = Depends(get_db
         id=doc.id,
         SoCT=data.SoCT,
         NgayCT=data.NgayCT,
-        MaKH=data.MaKH,
+        MaKH=data.MaKH,          # ← trả về MaKH
         TongTien=float(total_amount),
         TrangThai="DRAFT"
     )
@@ -360,16 +422,50 @@ def create_phieu_ban_hang(data: PhieuBanHangCreate, db: Session = Depends(get_db
 @router.get("/documents/phieu-ban-hang", response_model=list[PhieuBanHangResponse])
 def get_phieu_ban_hang(db: Session = Depends(get_db)):
     docs = db.query(Document).filter(Document.document_type == "PBH").all()
-    return [
-        PhieuBanHangResponse(
+    result = []
+    for d in docs:
+        customer_id = None
+        try:
+            if d.description and d.description.strip().startswith('{'):
+                meta = json.loads(d.description)
+                customer_id = meta.get('customer_id')
+        except Exception:
+            pass
+        result.append(PhieuBanHangResponse(
             id=d.id,
             SoCT=d.document_number,
             NgayCT=d.document_date,
-            MaKH=None,
+            MaKH=customer_id,     # ← trả về MaKH
             TongTien=float(d.total_amount),
             TrangThai=d.status
-        ) for d in docs
-    ]
+        ))
+    return result
+@router.get("/documents/phieu-ban-hang/{doc_id}")
+def get_phieu_ban_hang_detail(doc_id: int, db: Session = Depends(get_db)):
+    d = db.query(Document).filter(
+        Document.id == doc_id, Document.document_type == "PBH"
+    ).first()
+    if not d:
+        raise HTTPException(404, "Không tìm thấy")
+    items = db.query(SalesOrderItem).filter(
+        SalesOrderItem.sales_order_id == doc_id
+    ).all()
+    meta = {}
+    try:
+        if d.description and d.description.strip().startswith('{'):
+            meta = json.loads(d.description)
+    except Exception:
+        pass
+    return {
+        "id": d.id, "SoCT": d.document_number,
+        "NgayCT": str(d.document_date),
+        "MaKH": meta.get('customer_id'), "SoHD": meta.get('so_hd'),
+        "DienGiai": meta.get('dien_giai'), "TongTien": float(d.total_amount or 0),
+        "TrangThai": d.status,
+        "items": [{"product_id": i.product_id, "quantity": i.quantity,
+                   "unit_price": float(i.unit_price),
+                   "total": float(i.quantity * i.unit_price)} for i in items]
+    }
 
 
 # ============ PHIẾU BÁN LẺ ============
@@ -377,13 +473,18 @@ def get_phieu_ban_hang(db: Session = Depends(get_db)):
 def create_phieu_ban_le(data: PhieuBanLeCreate, db: Session = Depends(get_db)):
     total_amount = sum(item.SoLuong * item.DonGia for item in data.DanhSachHang)
 
+    meta = json.dumps({
+        "khach_hang": data.KhachHang or "",
+        "dien_giai": data.DienGiai or ""
+    }, ensure_ascii=False)
+
     doc = Document(
         document_type="BL",
         document_number=data.SoCT,
         document_date=data.NgayCT,
         period_id=data.MaKyKeToan,
         total_amount=total_amount,
-        description=data.DienGiai,
+        description=meta,
         status="DRAFT"
     )
     db.add(doc)
@@ -410,16 +511,70 @@ def create_phieu_ban_le(data: PhieuBanLeCreate, db: Session = Depends(get_db)):
         TrangThai="DRAFT"
     )
 
+
 @router.get("/documents/phieu-ban-le", response_model=list[PhieuBanLeResponse])
 def get_phieu_ban_le(db: Session = Depends(get_db)):
     docs = db.query(Document).filter(Document.document_type == "BL").all()
-    return [
-        PhieuBanLeResponse(
+    result = []
+    for d in docs:
+        khach_hang = None
+        try:
+            if d.description:
+                stripped = d.description.strip()
+                if stripped.startswith('{'):
+                    meta = json.loads(stripped)
+                    khach_hang = meta.get('khach_hang')
+        except Exception:
+            khach_hang = None
+        result.append(PhieuBanLeResponse(
             id=d.id,
             SoCT=d.document_number,
             NgayCT=d.document_date,
-            KhachHang=None,
-            TongTien=float(d.total_amount),
-            TrangThai=d.status
-        ) for d in docs
-    ]
+            KhachHang=khach_hang,
+            TongTien=float(d.total_amount or 0),
+            TrangThai=d.status or "DRAFT"
+        ))
+    return result
+
+
+# Thêm endpoint lấy chi tiết phiếu
+@router.get("/documents/phieu-ban-le/{doc_id}")
+def get_phieu_ban_le_detail(doc_id: int, db: Session = Depends(get_db)):
+    d = db.query(Document).filter(
+        Document.id == doc_id,
+        Document.document_type == "BL"
+    ).first()
+    if not d:
+        raise HTTPException(404, "Không tìm thấy phiếu")
+
+    items = db.query(RetailOrderItem).filter(
+        RetailOrderItem.retail_order_id == doc_id
+    ).all()
+
+    khach_hang = None
+    dien_giai = None
+    try:
+        if d.description and d.description.strip().startswith('{'):
+            meta = json.loads(d.description)
+            khach_hang = meta.get('khach_hang')
+            dien_giai = meta.get('dien_giai')
+    except Exception:
+        pass
+
+    return {
+        "id": d.id,
+        "SoCT": d.document_number,
+        "NgayCT": str(d.document_date),
+        "KhachHang": khach_hang,
+        "DienGiai": dien_giai,
+        "TongTien": float(d.total_amount or 0),
+        "TrangThai": d.status,
+        "items": [
+            {
+                "product_id": i.product_id,
+                "quantity": i.quantity,
+                "unit_price": float(i.unit_price),
+                "total": float(i.quantity * i.unit_price)
+            } for i in items
+        ]
+    }
