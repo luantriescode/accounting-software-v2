@@ -1724,44 +1724,25 @@ const Receipts=()=>{
   const [customers,setCustomers]=useState([])
   const {options:kyOptions,defaultKy:kyDefault}=useKyKeToan()
   const [loaiGDThu,setLoaiGDThu]=useState([])
-  const [products]=useState([]) // Phiếu thu không có items nên truyền rỗng
   const [detail,setDetail]=useState(null)
   const [detailModal,setDetailModal]=useState(false)
   const [detailLoading,setDetailLoading]=useState(false)
-  
-   const openDetail=async(row)=>{
-    setDetailModal(true)
-    setDetailLoading(true)
-    setDetail(null)
-    const r=await api('GET',`/documents/phieu-thu/${row.id}`)
-    setDetail(r&&!r.__error?r:{...row,items:[]})
-    setDetailLoading(false)
-  }
-  const makeNewSoCT = (list) => {
-    // Tạo số CT mới dựa trên list hiện tại
-    const ym = new Date().toISOString().slice(0,7).replace('-','')
-    const prefix = `PT-${ym}`
-    const maxNum = (list||[]).reduce((mx, r) => {
-      const soct = r.SoCT || r.so_chung_tu || ''
-      if (!soct.startsWith(prefix)) return mx
-      const parts = soct.split('-')
-      const n = parseInt(parts[parts.length-1]) || 0
-      return n > mx ? n : mx
-    }, 0)
-    return `${prefix}-${String(maxNum+1).padStart(3,'0')}`
-  }
 
-  const makeEmptyForm = (list=[]) => ({
-    SoCT: makeNewSoCT(list),
-    NgayCT: today(),
-    MaKyKeToan: kyDefault,
-    MaKH: '',          // customer ID (số) - dùng để gửi API
-    TienThu: 0,
-    HinhThucTT: 'Chuyển khoản',
-    LoaiGiaoDich: '',
-    DienGiai: ''
+  const makeNewSoCT=(list)=>{
+    const ym=new Date().toISOString().slice(0,7).replace('-','')
+    const pre=`PT-${ym}`
+    const maxNum=(list||[]).reduce((mx,r)=>{
+      const soct=r.SoCT||r.so_chung_tu||''
+      if(!soct.startsWith(pre)) return mx
+      const n=parseInt(soct.split('-').pop())||0
+      return n>mx?n:mx
+    },0)
+    return `${pre}-${String(maxNum+1).padStart(3,'0')}`
+  }
+  const makeEmptyForm=(list=[])=>({
+    SoCT:makeNewSoCT(list),NgayCT:today(),MaKyKeToan:kyDefault,
+    MaKH:'',TienThu:0,HinhThucTT:'Chuyển khoản',LoaiGiaoDich:'',DienGiai:''
   })
-
   const [form,setForm]=useState(()=>makeEmptyForm())
   const [alert,showAlert,closeAlert]=useAlert()
   const sf=k=>e=>setForm(f=>({...f,[k]:e.target.value}))
@@ -1775,88 +1756,79 @@ const Receipts=()=>{
     api('GET','/customers').then(d=>setCustomers(Array.isArray(d)?d:[]))
   },[])
 
-  // Khi data load xong, cập nhật SoCT nếu form đang trống
   useEffect(()=>{
-    if(tab==='create' && !loading) {
-      setForm(f=>({...f, SoCT: makeNewSoCT(data)}))
-    }
-  },[data, loading])
+    if(!loading&&tab==='list') setForm(f=>({...f,SoCT:makeNewSoCT(data)}))
+  },[data,loading])
+
+  const openDetail=async(row)=>{
+    setDetailModal(true); setDetailLoading(true); setDetail(null)
+    const r=await api('GET',`/documents/phieu-thu/${row.id}`)
+    setDetail(r&&!r.__error?r:{...row,items:[]})
+    setDetailLoading(false)
+  }
+
+  const getKHLabel=(id)=>{
+    const c=customers.find(x=>String(x.id)===String(id))
+    return c?`${c.TenKH||c.name}`:(id?`KH #${id}`:'-')
+  }
 
   const save=async()=>{
     if(!form.SoCT||!form.MaKH||!+form.TienThu){
-      showAlert('Vui lòng điền: Số CT, Khách Hàng, Số Tiền!','danger')
-      return
+      showAlert('Vui lòng điền: Số CT, Khách Hàng, Số Tiền!','danger'); return
     }
-    const body={
-      NgayCT:form.NgayCT,
-      SoCT:form.SoCT,
-      LoaiGiaoDich:form.LoaiGiaoDich,
-      TienThu:+form.TienThu,
-      DienGiai:form.DienGiai,
-      MaKH:+form.MaKH,
-      MaKyKeToan:+form.MaKyKeToan,
-      HinhThucTT:form.HinhThucTT
-    }
+    const body={NgayCT:form.NgayCT,SoCT:form.SoCT,LoaiGiaoDich:form.LoaiGiaoDich,
+      TienThu:+form.TienThu,DienGiai:form.DienGiai,MaKH:+form.MaKH,
+      MaKyKeToan:+form.MaKyKeToan,HinhThucTT:form.HinhThucTT}
     const r=await api('POST','/documents/phieu-thu',body)
-    if(r && !r.__error){
+    if(r&&!r.__error){
       showAlert(`Tạo phiếu thu ${form.SoCT} thành công!`)
-      setTab('list')
-      // Load lại data, sau đó tạo số CT mới
-      const newData = await api('GET','/documents/phieu-thu')
-      const list = Array.isArray(newData) ? newData : data
-      setForm(makeEmptyForm(list))
-      load()
-    } else {
-      showAlert('Lỗi tạo phiếu thu! '+(r?.message||'Kiểm tra Số CT đã tồn tại chưa.'),'danger')
-    }
+      const newData=await api('GET','/documents/phieu-thu')
+      setForm(makeEmptyForm(Array.isArray(newData)?newData:[]))
+      load(); setTab('list')
+    } else showAlert('Lỗi: '+(r?.message||'Tạo thất bại'),'danger')
   }
 
-  // Helper: tìm tên KH theo ID
-  const getKHLabel = (id) => {
-    const c = customers.find(x => String(x.id) === String(id))
-    return c ? `${c.TenKH||c.name}` : `KH #${id}`
-  }
-
-  return(<div className="space-y-4">{alert&&<Alert msg={alert.msg} type={alert.type} onClose={closeAlert}/>}
-    <Tabs tabs={[{id:'list',label:'📋 Danh Sách'},{id:'create',label:'+ Tạo Mới'}]} active={tab} 
-      onChange={t=>{
-        setTab(t)
-        // Khi chuyển sang tab tạo mới, refresh số CT
-        if(t==='create') setForm(f=>({...f, SoCT: makeNewSoCT(data)}))
-      }}/>
-    {tab==='list'&&<Card><CH><h3 className="font-bold">💰 Danh Sách Phiếu Thu</h3>
-      <div className="ml-auto flex gap-2"><Btn v="pdf" size="sm">⬇ PDF</Btn><Btn v="excel" size="sm">⬇ Excel</Btn></div></CH>
+  return(<div className="space-y-4">
+    {alert&&<Alert msg={alert.msg} type={alert.type} onClose={closeAlert}/>}
+    <DetailModal open={detailModal} onClose={()=>{setDetailModal(false);setDetail(null)}}
+      title={`💰 Chi Tiết Phiếu Thu - ${detail?.SoCT||''}`}
+      detail={detail} loading={detailLoading} products={[]} customers={customers} suppliers={[]}/>
+    <Tabs tabs={[{id:'list',label:'📋 Danh Sách'},{id:'create',label:'+ Tạo Mới'}]} active={tab}
+      onChange={t=>{setTab(t);if(t==='create') setForm(f=>({...f,SoCT:makeNewSoCT(data)}))}}/>
+    {tab==='list'&&<Card>
+      <CH><h3 className="font-bold">💰 Danh Sách Phiếu Thu</h3>
+        <div className="ml-auto flex gap-2"><Btn v="pdf" size="sm">⬇ PDF</Btn><Btn v="excel" size="sm">⬇ Excel</Btn></div>
+      </CH>
+      <p className="px-4 py-1.5 text-xs text-blue-600 bg-blue-50 border-b border-blue-100">💡 Click vào Số CT để xem chi tiết</p>
       <Tbl data={data} loading={loading} empty="Chưa có phiếu thu" cols={[
         {k:'SoCT',l:'Số Phiếu',w:'130px',fn:(v,r)=>(
           <button onClick={()=>openDetail(r)} className="text-blue-600 hover:underline font-mono text-xs font-semibold">{v||'-'}</button>
-          )},
-        {k:'NgayCT',l:'Ngày',w:'100px',fn:(v,r)=>fmtDate(v||r.ngay_phieu)},
-        // Hiển thị tên KH thay vì ID
+        )},
+        {k:'NgayCT',l:'Ngày',w:'100px',fn:v=>fmtDate(v)},
         {k:'MaKH',l:'Khách Hàng',fn:(v,r)=>{
-          const id = v || r.customer_id
+          const id=v||r.customer_id
           return <span className="font-medium">{getKHLabel(id)}</span>
         }},
-        {k:'TienThu',l:'Số Tiền',r:true,fn:(v,r)=><span className="text-green-700 font-semibold">{fmt(v||r.so_tien||0)}</span>},
-        {k:'HinhThucTT',l:'HTTT',w:'120px',fn:(v,r)=>v||r.hinh_thuc_thanh_toan||'-'},
-        {k:'DienGiai',l:'Diễn Giải',fn:(v,r)=>v||r.ghi_chu||'-'},
-        {k:'TrangThai',l:'TT',w:'80px',fn:(v,r)=><Badge v={v==='POSTED'||r.trang_thai==='POSTED'?'success':'warning'}>{v||r.trang_thai||'DRAFT'}</Badge>},
+        {k:'TienThu',l:'Số Tiền',r:true,fn:v=><span className="text-green-700 font-semibold">{fmt(v||0)}</span>},
+        {k:'HinhThucTT',l:'HTTT',w:'120px',fn:v=>v||'-'},
+        {k:'DienGiai',l:'Diễn Giải'},
+        {k:'TrangThai',l:'TT',w:'80px',fn:v=><Badge v={v==='POSTED'?'success':'warning'}>{v||'DRAFT'}</Badge>},
       ]}/></Card>}
-    {tab==='create'&&<Card><CH><h3 className="font-bold">💰 Tạo Phiếu Thu Mới</h3></CH>
+    {tab==='create'&&<Card>
+      <CH><h3 className="font-bold">💰 Tạo Phiếu Thu Mới</h3></CH>
       <CB><div className="grid grid-cols-3 gap-3">
-        <Inp label="Số CT (SoCT)" req value={form.SoCT} onChange={sf('SoCT')} placeholder="PT-202605-001" hint="Tự sinh, có thể sửa"/>
-        <Inp label="Ngày CT (NgayCT)" req type="date" value={form.NgayCT} onChange={sf('NgayCT')}/>
+        <Inp label="Số CT" req value={form.SoCT} onChange={sf('SoCT')} hint="Tự sinh, có thể sửa"/>
+        <Inp label="Ngày CT" req type="date" value={form.NgayCT} onChange={sf('NgayCT')}/>
         <Sel label="Kỳ Kế Toán" req value={form.MaKyKeToan} onChange={sf('MaKyKeToan')} options={kyOptions}/>
         <div className="col-span-2">
-          <Sel label="Khách Hàng" req value={form.MaKH} onChange={sf('MaKH')} 
-            options={customers.map(c=>({
-              value: c.id,
-              label: `${c.TenKH||c.name} (${c.MaKH||c.code})`
-            }))}/>
+          <Sel label="Khách Hàng" req value={form.MaKH} onChange={sf('MaKH')}
+            options={customers.map(c=>({value:c.id,label:`${c.TenKH||c.name} (${c.MaKH||c.code})`}))}/>
         </div>
-        <Sel label="Hình Thức TT (HinhThucTT)" value={form.HinhThucTT} onChange={sf('HinhThucTT')} options={['Tiền mặt','Chuyển khoản','Thẻ']}/>
-        <Inp label="Số Tiền Thu (TienThu)" req type="number" value={form.TienThu} onChange={sf('TienThu')}/>
-        <Sel label="Loại Giao Dịch" value={form.LoaiGiaoDich} onChange={sf('LoaiGiaoDich')} options={loaiGDThu.map(x=>({value:x.value||x.name,label:x.label||x.name}))}/>
-        <div className="col-span-3"><Inp label="Diễn Giải (DienGiai)" value={form.DienGiai} onChange={sf('DienGiai')}/></div>
+        <Sel label="Hình Thức TT" value={form.HinhThucTT} onChange={sf('HinhThucTT')} options={['Tiền mặt','Chuyển khoản','Thẻ']}/>
+        <Inp label="Số Tiền Thu" req type="number" value={form.TienThu} onChange={sf('TienThu')}/>
+        <Sel label="Loại Giao Dịch" value={form.LoaiGiaoDich} onChange={sf('LoaiGiaoDich')}
+          options={loaiGDThu.map(x=>({value:x.value||x.name,label:x.label||x.name}))}/>
+        <div className="col-span-3"><Inp label="Diễn Giải" value={form.DienGiai} onChange={sf('DienGiai')}/></div>
       </div>
       <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg flex justify-between items-center">
         <span className="text-sm font-semibold text-green-800">Tổng Tiền Thu:</span>
@@ -1878,139 +1850,108 @@ const Payments=()=>{
   const [detailModal,setDetailModal]=useState(false)
   const [detailLoading,setDetailLoading]=useState(false)
 
-  const openDetail=async(row)=>{
-    setDetailModal(true); setDetailLoading(true); setDetail(null)
-    const r=await api('GET',`/documents/phieu-chi/${row.id}`)
-    setDetail(r&&!r.__error?r:{...row,items:[]})
-    setDetailLoading(false)
+  const makeNewSoCT=(list)=>{
+    const ym=new Date().toISOString().slice(0,7).replace('-','')
+    const pre=`PC-${ym}`
+    const maxNum=(list||[]).reduce((mx,r)=>{
+      const soct=r.SoCT||r.so_chung_tu||''
+      if(!soct.startsWith(pre)) return mx
+      const n=parseInt(soct.split('-').pop())||0
+      return n>mx?n:mx
+    },0)
+    return `${pre}-${String(maxNum+1).padStart(3,'0')}`
   }
-  const makeNewSoCT = (list) => {
-    const ym = new Date().toISOString().slice(0,7).replace('-','')
-    const prefix = `PC-${ym}`
-    const maxNum = (list||[]).reduce((mx, r) => {
-      const soct = r.SoCT || r.so_chung_tu || ''
-      if (!soct.startsWith(prefix)) return mx
-      const parts = soct.split('-')
-      const n = parseInt(parts[parts.length-1]) || 0
-      return n > mx ? n : mx
-    }, 0)
-    return `${prefix}-${String(maxNum+1).padStart(3,'0')}`
-  }
-
-  const makeEmptyForm = (list=[]) => ({
-    SoCT: makeNewSoCT(list),
-    NgayCT: today(),
-    MaKyKeToan: kyDefault,
-    MaNCC: '',
-    TienChi: 0,
-    HinhThucTT: 'Chuyển khoản',
-    LoaiGiaoDich: '',
-    DienGiai: ''
+  const makeEmptyForm=(list=[])=>({
+    SoCT:makeNewSoCT(list),NgayCT:today(),MaKyKeToan:kyDefault,
+    MaNCC:'',TienChi:0,HinhThucTT:'Chuyển khoản',LoaiGiaoDich:'',DienGiai:''
   })
-
   const [form,setForm]=useState(()=>makeEmptyForm())
   const [alert,showAlert,closeAlert]=useAlert()
   const sf=k=>e=>setForm(f=>({...f,[k]:e.target.value}))
 
-
   useEffect(()=>{
-    api('GET','/suppliers').then(d=>{
-      const list = Array.isArray(d)?d:[]
-      setSuppliers(list)
-      console.log('Suppliers loaded:', list.length) // debug
-    })
+    api('GET','/suppliers').then(d=>setSuppliers(Array.isArray(d)?d:[]))
     api('GET','/categories/loai-giao-dich-chi').then(d=>{
       const list=Array.isArray(d)?d:(d?.items||[])
       setLoaiGDChi(list)
       if(list.length) setForm(f=>({...f,LoaiGiaoDich:f.LoaiGiaoDich||list[0].value||list[0].name||''}))
     })
   },[])
-  // Khi data load xong, cập nhật SoCT
+
   useEffect(()=>{
-    if(tab==='create' && !loading){
-      setForm(f=>({...f, SoCT: makeNewSoCT(data)}))
-    }
-  },[data, loading])
+    if(!loading&&tab==='list') setForm(f=>({...f,SoCT:makeNewSoCT(data)}))
+  },[data,loading])
+
+  const openDetail=async(row)=>{
+    setDetailModal(true); setDetailLoading(true); setDetail(null)
+    const r=await api('GET',`/documents/phieu-chi/${row.id}`)
+    setDetail(r&&!r.__error?r:{...row,items:[]})
+    setDetailLoading(false)
+  }
+
+  const getNCCLabel=(id)=>{
+    const s=suppliers.find(x=>String(x.id)===String(id))
+    return s?`${s.TenNCC||s.name}`:(id?`NCC #${id}`:'-')
+  }
 
   const save=async()=>{
     if(!form.SoCT||!+form.TienChi){
-      showAlert('Vui lòng điền: Số CT và Số Tiền!','danger')
-      return
+      showAlert('Vui lòng điền: Số CT và Số Tiền!','danger'); return
     }
-    const body={
-      NgayCT:form.NgayCT,
-      SoCT:form.SoCT,
-      LoaiGiaoDich:form.LoaiGiaoDich,
-      TienChi:+form.TienChi,
-      DienGiai:form.DienGiai,
+    const body={NgayCT:form.NgayCT,SoCT:form.SoCT,LoaiGiaoDich:form.LoaiGiaoDich,
+      TienChi:+form.TienChi,DienGiai:form.DienGiai,
       MaNCC:form.MaNCC?+form.MaNCC:null,
-      MaKyKeToan:+form.MaKyKeToan,
-      HinhThucTT:form.HinhThucTT
-    }
+      MaKyKeToan:+form.MaKyKeToan,HinhThucTT:form.HinhThucTT}
     const r=await api('POST','/documents/phieu-chi',body)
     if(r&&!r.__error){
       showAlert(`Tạo phiếu chi ${form.SoCT} thành công!`)
-      setTab('list')
-      // Load lại data, sau đó tạo số CT mới
-      const newData = await api('GET','/documents/phieu-chi')
-      const list = Array.isArray(newData) ? newData : data
-      setForm(makeEmptyForm(list))
-      load()
-    } else {
-      showAlert('Lỗi: '+(r?.message||'Tạo phiếu chi thất bại'),'danger')
-    }
+      const newData=await api('GET','/documents/phieu-chi')
+      setForm(makeEmptyForm(Array.isArray(newData)?newData:[]))
+      load(); setTab('list')
+    } else showAlert('Lỗi: '+(r?.message||'Tạo thất bại'),'danger')
   }
 
-  // Helper: tìm tên NCC theo ID
-  const getNCCLabel = (id) => {
-    if (!id) return '-'
-    const s = suppliers.find(x => String(x.id) === String(id))
-    if (s) return `${s.TenNCC||s.name} (${s.MaNCC||s.code})`
-    return `NCC #${id}`  // fallback khi suppliers chưa load
-  }
-
-  return(<div className="space-y-4">{alert&&<Alert msg={alert.msg} type={alert.type} onClose={closeAlert}/>}
+  return(<div className="space-y-4">
+    {alert&&<Alert msg={alert.msg} type={alert.type} onClose={closeAlert}/>}
+    <DetailModal open={detailModal} onClose={()=>{setDetailModal(false);setDetail(null)}}
+      title={`💸 Chi Tiết Phiếu Chi - ${detail?.SoCT||''}`}
+      detail={detail} loading={detailLoading} products={[]} customers={[]} suppliers={suppliers}/>
     <Tabs tabs={[{id:'list',label:'📋 Danh Sách'},{id:'create',label:'+ Tạo Mới'}]} active={tab}
-      onChange={t=>{
-        setTab(t)
-        // Khi chuyển sang tab tạo mới, refresh số CT
-        if(t==='create') setForm(f=>({...f, SoCT: makeNewSoCT(data)}))
-      }}/>
-    {tab==='list'&&<Card><CH><h3 className="font-bold">💸 Danh Sách Phiếu Chi</h3>
-      <div className="ml-auto flex gap-2"><Btn v="pdf" size="sm">⬇ PDF</Btn><Btn v="excel" size="sm">⬇ Excel</Btn></div></CH>
+      onChange={t=>{setTab(t);if(t==='create') setForm(f=>({...f,SoCT:makeNewSoCT(data)}))}}/>
+    {tab==='list'&&<Card>
+      <CH><h3 className="font-bold">💸 Danh Sách Phiếu Chi</h3>
+        <div className="ml-auto flex gap-2"><Btn v="pdf" size="sm">⬇ PDF</Btn><Btn v="excel" size="sm">⬇ Excel</Btn></div>
+      </CH>
+      <p className="px-4 py-1.5 text-xs text-blue-600 bg-blue-50 border-b border-blue-100">💡 Click vào Số CT để xem chi tiết</p>
       <Tbl data={data} loading={loading} empty="Chưa có phiếu chi" cols={[
-        //{k:'SoCT',l:'Số Phiếu',w:'130px',fn:(v,r)=><Code v={v||r.so_phieu}/>},
         {k:'SoCT',l:'Số Phiếu',w:'130px',fn:(v,r)=>(
           <button onClick={()=>openDetail(r)} className="text-blue-600 hover:underline font-mono text-xs font-semibold">{v||'-'}</button>
-          )},
-        {k:'NgayCT',l:'Ngày',w:'100px',fn:(v,r)=>fmtDate(v||r.ngay_phieu)},
-        // Hiển thị tên NCC thay vì ID
+        )},
+        {k:'NgayCT',l:'Ngày',w:'100px',fn:v=>fmtDate(v)},
         {k:'MaNCC',l:'Nhà Cung Cấp',fn:(v,r)=>{
-          // API có thể trả về MaNCC hoặc supplier_id
-          const id = v ?? r.supplier_id ?? r.MaNCC
+          const id=v??r.supplier_id
           return <span className="font-medium">{getNCCLabel(id)}</span>
         }},
-        {k:'TienChi',l:'Số Tiền',r:true,fn:(v,r)=><span className="text-red-700 font-semibold">{fmt(v||r.so_tien||0)}</span>},
-        {k:'HinhThucTT',l:'HTTT',w:'120px',fn:(v,r)=>v||r.hinh_thuc_thanh_toan||'-'},
-        {k:'DienGiai',l:'Diễn Giải',fn:(v,r)=>v||r.ghi_chu||'-'},
-        {k:'TrangThai',l:'TT',w:'80px',fn:(v,r)=><Badge v="warning">{v||r.trang_thai||'DRAFT'}</Badge>},
+        {k:'TienChi',l:'Số Tiền',r:true,fn:v=><span className="text-red-700 font-semibold">{fmt(v||0)}</span>},
+        {k:'HinhThucTT',l:'HTTT',w:'120px',fn:v=>v||'-'},
+        {k:'DienGiai',l:'Diễn Giải'},
+        {k:'TrangThai',l:'TT',w:'80px',fn:v=><Badge v="warning">{v||'DRAFT'}</Badge>},
       ]}/></Card>}
-    {tab==='create'&&<Card><CH><h3 className="font-bold">💸 Tạo Phiếu Chi Mới</h3></CH>
+    {tab==='create'&&<Card>
+      <CH><h3 className="font-bold">💸 Tạo Phiếu Chi Mới</h3></CH>
       <CB><div className="grid grid-cols-3 gap-3">
-        <Inp label="Số CT (SoCT)" req value={form.SoCT} onChange={sf('SoCT')} placeholder="PC-202605-001" hint="Tự sinh, có thể sửa"/>
-        <Inp label="Ngày CT (NgayCT)" req type="date" value={form.NgayCT} onChange={sf('NgayCT')}/>
+        <Inp label="Số CT" req value={form.SoCT} onChange={sf('SoCT')} hint="Tự sinh, có thể sửa"/>
+        <Inp label="Ngày CT" req type="date" value={form.NgayCT} onChange={sf('NgayCT')}/>
         <Sel label="Kỳ Kế Toán" req value={form.MaKyKeToan} onChange={sf('MaKyKeToan')} options={kyOptions}/>
         <div className="col-span-2">
-          <Sel label="Nhà Cung Cấp (MaNCC)" value={form.MaNCC} onChange={sf('MaNCC')}
-            options={suppliers.map(s=>({
-              value: s.id,
-              label: `${s.TenNCC||s.name} (${s.MaNCC||s.code})`
-            }))}/>
+          <Sel label="Nhà Cung Cấp" value={form.MaNCC} onChange={sf('MaNCC')}
+            options={suppliers.map(s=>({value:s.id,label:`${s.TenNCC||s.name} (${s.MaNCC||s.code})`}))}/>
         </div>
         <Sel label="Hình Thức TT" value={form.HinhThucTT} onChange={sf('HinhThucTT')} options={['Tiền mặt','Chuyển khoản','Thẻ']}/>
-        <Inp label="Số Tiền Chi (TienChi)" req type="number" value={form.TienChi} onChange={sf('TienChi')}/>
-        <Sel label="Loại Giao Dịch" value={form.LoaiGiaoDich} onChange={sf('LoaiGiaoDich')} options={loaiGDChi.map(x=>({value:x.value||x.name,label:x.label||x.name}))}/>
-        <div className="col-span-3"><Inp label="Diễn Giải (DienGiai)" value={form.DienGiai} onChange={sf('DienGiai')}/></div>
+        <Inp label="Số Tiền Chi" req type="number" value={form.TienChi} onChange={sf('TienChi')}/>
+        <Sel label="Loại Giao Dịch" value={form.LoaiGiaoDich} onChange={sf('LoaiGiaoDich')}
+          options={loaiGDChi.map(x=>({value:x.value||x.name,label:x.label||x.name}))}/>
+        <div className="col-span-3"><Inp label="Diễn Giải" value={form.DienGiai} onChange={sf('DienGiai')}/></div>
       </div>
       <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg flex justify-between items-center">
         <span className="text-sm font-semibold text-red-800">Tổng Tiền Chi:</span>
@@ -2035,48 +1976,26 @@ const BankTxn=({type})=>{
   const [detailModal,setDetailModal]=useState(false)
   const [detailLoading,setDetailLoading]=useState(false)
 
-  const openDetail=async(row)=>{
-    setDetailModal(true); setDetailLoading(true); setDetail(null)
-    // TTG và CTG dùng data trực tiếp từ row vì đã có đủ thông tin
-    // Thêm items rỗng vì TTG/CTG không có hàng hóa
-    setDetail({
-      SoCT: row.so_chung_tu,
-      NgayCT: row.ngay_chung_tu,
-      loai_giao_dich: row.loai_giao_dich,
-      so_tien_thu: isTTG ? row.so_tien_thu : undefined,
-      so_tien_chi: !isTTG ? row.so_tien_chi : undefined,
-      noi_dung: row.noi_dung,
-      trang_thai: row.trang_thai,
-      da_doi_chieu: row.da_doi_chieu,
-      items: []
-    })
-    setDetailLoading(false)
-  }
+  const prefix=isTTG?'TTG':'CTG'
 
-  const prefix = isTTG ? 'TTG' : 'CTG'
-
-  const makeNewSoCT = (list) => {
-    const ym = new Date().toISOString().slice(0,7).replace('-','')
-    const pre = `${prefix}-${ym}`
-    const maxNum = (list||[]).reduce((mx, r) => {
-      const soct = r.so_chung_tu || ''
-      if (!soct.startsWith(pre)) return mx
-      const parts = soct.split('-')
-      const n = parseInt(parts[parts.length-1]) || 0
-      return n > mx ? n : mx
-    }, 0)
+  const makeNewSoCT=(list)=>{
+    const ym=new Date().toISOString().slice(0,7).replace('-','')
+    const pre=`${prefix}-${ym}`
+    const maxNum=(list||[]).reduce((mx,r)=>{
+      const soct=r.so_chung_tu||''
+      if(!soct.startsWith(pre)) return mx
+      const n=parseInt(soct.split('-').pop())||0
+      return n>mx?n:mx
+    },0)
     return `${pre}-${String(maxNum+1).padStart(3,'0')}`
   }
 
-  const makeEmptyForm = (list=[]) => ({
-    tk_id: '',
-    loai_giao_dich: '',
-    so_chung_tu: makeNewSoCT(list),
-    ngay_chung_tu: today(),
-    so_tien_thu: 0,
-    so_tien_chi: 0,
-    noi_dung: '',
-    period_id: 1
+  const makeEmptyForm=(list=[])=>({
+    tk_id:'',loai_giao_dich:'',
+    so_chung_tu:makeNewSoCT(list),
+    ngay_chung_tu:today(),
+    so_tien_thu:0,so_tien_chi:0,
+    noi_dung:'',period_id:1
   })
 
   const [form,setForm]=useState(()=>makeEmptyForm())
@@ -2087,170 +2006,109 @@ const BankTxn=({type})=>{
     api('GET',isTTG?'/banking/loai-giao-dich-thu':'/banking/loai-giao-dich-chi').then(d=>{
       const list=Array.isArray(d)?d:(d?.items||[])
       setLtypes(list)
-      if(list.length) setForm(f=>({
-        ...f,
-        loai_giao_dich: f.loai_giao_dich||list[0].value||list[0].name||''
-      }))
+      if(list.length) setForm(f=>({...f,loai_giao_dich:f.loai_giao_dich||list[0].value||list[0].name||''}))
     })
-    if(isTTG){
-      api('GET','/customers').then(d=>setCustomers(Array.isArray(d)?d:[]))
-    } else {
-      api('GET','/suppliers').then(d=>setSuppliers(Array.isArray(d)?d:[]))
-    }
+    if(isTTG) api('GET','/customers').then(d=>setCustomers(Array.isArray(d)?d:[]))
+    else api('GET','/suppliers').then(d=>setSuppliers(Array.isArray(d)?d:[]))
   },[type])
 
-  // Khi data load xong, cập nhật SoCT
   useEffect(()=>{
-    if(!loading){
-      setForm(f=>({...f, so_chung_tu: makeNewSoCT(data)}))
-    }
-  },[data, loading])
+    if(!loading) setForm(f=>({...f,so_chung_tu:makeNewSoCT(data)}))
+  },[data,loading])
 
-  // Helper tên TK
-  const getTKLabel = (id) => {
-    const a = accounts.find(x => String(x.id) === String(id))
-    return a ? `${a.ten_tk} (${a.ma_tk})` : (id ? `TK #${id}` : '-')
+  const openDetail=(row)=>{
+    // TTG/CTG dùng data từ row trực tiếp, không cần fetch thêm
+    setDetail({
+      SoCT: row.so_chung_tu,
+      NgayCT: row.ngay_chung_tu,
+      loai_giao_dich: row.loai_giao_dich,
+      so_tien_thu: isTTG ? row.so_tien_thu : undefined,
+      so_tien_chi: !isTTG ? row.so_tien_chi : undefined,
+      noi_dung: row.noi_dung,
+      TrangThai: row.trang_thai,
+      da_doi_chieu: row.da_doi_chieu,
+      items:[]
+    })
+    setDetailModal(true)
   }
 
-  // Helper tên KH/NCC
-  const getEntityLabel = (id) => {
-    if (!id) return '-'
-    if (isTTG) {
-      const c = customers.find(x => String(x.id) === String(id))
-      return c ? `${c.TenKH||c.name}` : `KH #${id}`
-    } else {
-      const s = suppliers.find(x => String(x.id) === String(id))
-      return s ? `${s.TenNCC||s.name}` : `NCC #${id}`
-    }
+  const getTKLabel=(id)=>{
+    const a=accounts.find(x=>String(x.id)===String(id))
+    return a?`${a.ten_tk} (${a.ma_tk})`:(id?`TK #${id}`:'-')
   }
 
   const save=async()=>{
-    if(!form.tk_id){
-      showAlert('Vui lòng chọn Tài Khoản!','danger')
-      return
-    }
-    const soTien = isTTG ? +form.so_tien_thu : +form.so_tien_chi
-    if(!soTien || soTien <= 0){
-      showAlert('Vui lòng nhập Số Tiền lớn hơn 0!','danger')
-      return
-    }
-
-    const body={
-      ...form,
-      tk_id: +form.tk_id,
-      period_id: +form.period_id,
-      ...(isTTG
-        ? {so_tien_thu: +form.so_tien_thu}
-        : {so_tien_chi: +form.so_tien_chi}
-      )
-    }
-
-    const r=await api('POST', isTTG?'/banking/ttg':'/banking/ctg', body)
-    if(r && !r.__error){
+    if(!form.tk_id){showAlert('Vui lòng chọn Tài Khoản!','danger');return}
+    const soTien=isTTG?+form.so_tien_thu:+form.so_tien_chi
+    if(!soTien||soTien<=0){showAlert('Vui lòng nhập Số Tiền lớn hơn 0!','danger');return}
+    const body={...form,tk_id:+form.tk_id,period_id:+form.period_id,
+      ...(isTTG?{so_tien_thu:+form.so_tien_thu}:{so_tien_chi:+form.so_tien_chi})}
+    const r=await api('POST',isTTG?'/banking/ttg':'/banking/ctg',body)
+    if(r&&!r.__error){
       showAlert(`Tạo ${prefix} ${form.so_chung_tu} thành công!`)
-      setModal(false)
-      // Load lại data, sau đó tạo số CT mới
-      const newData = await api('GET', isTTG?'/banking/ttg':'/banking/ctg')
-      const list = Array.isArray(newData) ? newData : data
-      setForm(makeEmptyForm(list))
-      load()
-    } else {
-      showAlert('Lỗi: '+(r?.message||'Tạo thất bại'),'danger')
-    }
+      const newData=await api('GET',isTTG?'/banking/ttg':'/banking/ctg')
+      setForm(makeEmptyForm(Array.isArray(newData)?newData:[]))
+      load(); setModal(false)
+    } else showAlert('Lỗi: '+(r?.message||'Tạo thất bại'),'danger')
   }
 
   return(<div className="space-y-4">
     {alert&&<Alert msg={alert.msg} type={alert.type} onClose={closeAlert}/>}
+
+    <DetailModal open={detailModal} onClose={()=>{setDetailModal(false);setDetail(null)}}
+      title={`🏦 Chi Tiết ${isTTG?'Thu Tiền Gửi':'Chi Tiền Gửi'} - ${detail?.SoCT||''}`}
+      detail={detail} loading={detailLoading} products={[]} customers={customers} suppliers={suppliers}/>
+
     <Card><CH>
-      <h3 className="font-bold">
-        {isTTG?'🏦 Thu Tiền Gửi (TTG)':'🏦 Chi Tiền Gửi (CTG)'}
-      </h3>
+      <h3 className="font-bold">{isTTG?'🏦 Thu Tiền Gửi (TTG)':'🏦 Chi Tiền Gửi (CTG)'}</h3>
       <div className="ml-auto flex gap-2">
         <Btn size="sm" onClick={()=>{
-          // Refresh số CT khi mở modal
-          setForm(f=>({...f, so_chung_tu: makeNewSoCT(data)}))
+          setForm(f=>({...f,so_chung_tu:makeNewSoCT(data)}))
           setModal(true)
         }}>+ Tạo Mới</Btn>
         <Btn v="pdf" size="sm">⬇ PDF</Btn>
       </div>
     </CH>
+      <p className="px-4 py-1.5 text-xs text-blue-600 bg-blue-50 border-b border-blue-100">💡 Click vào Số CT để xem chi tiết</p>
       <Tbl data={data} loading={loading} empty={`Chưa có ${prefix}`} cols={[
-        //{k:'so_chung_tu',l:'Số CT',w:'150px',fn:v=><Code v={v}/>},
         {k:'so_chung_tu',l:'Số CT',w:'150px',fn:(v,r)=>(
           <button onClick={()=>openDetail(r)} className="text-blue-600 hover:underline font-mono text-xs font-semibold">{v||'-'}</button>
         )},
         {k:'ngay_chung_tu',l:'Ngày',w:'100px',fn:v=>fmtDate(v)},
-        {k:'tk_id',l:'Tài Khoản',w:'150px',fn:v=>
-          <span className="text-xs">{getTKLabel(v)}</span>
-        },
+        {k:'tk_id',l:'Tài Khoản',w:'160px',fn:v=><span className="text-xs">{getTKLabel(v)}</span>},
         {k:'loai_giao_dich',l:'Loại GD'},
-        {k: isTTG?'so_tien_thu':'so_tien_chi', l:'Số Tiền', r:true,
-          fn:v=><span className={`font-semibold ${isTTG?'text-green-700':'text-red-700'}`}>
-            {fmt(v)}
-          </span>
-        },
+        {k:isTTG?'so_tien_thu':'so_tien_chi',l:'Số Tiền',r:true,
+          fn:v=><span className={`font-semibold ${isTTG?'text-green-700':'text-red-700'}`}>{fmt(v)}</span>},
         {k:'noi_dung',l:'Nội Dung'},
-        {k:'da_doi_chieu',l:'Đối Chiếu',w:'90px',
-          fn:v=><Badge v={v?'success':'gray'}>{v?'Đã ĐC':'Chưa'}</Badge>
-        },
-        {k:'trang_thai',l:'TT',w:'90px',
-          fn:v=><Badge v={v==='POSTED'?'success':'warning'}>{v||'DRAFT'}</Badge>
-        },
+        {k:'da_doi_chieu',l:'Đối Chiếu',w:'90px',fn:v=><Badge v={v?'success':'gray'}>{v?'Đã ĐC':'Chưa'}</Badge>},
+        {k:'trang_thai',l:'TT',w:'90px',fn:v=><Badge v={v==='POSTED'?'success':'warning'}>{v||'DRAFT'}</Badge>},
       ]}/>
     </Card>
 
     <Modal open={modal} onClose={()=>setModal(false)}
       title={isTTG?'🏦 Tạo Thu Tiền Gửi (TTG)':'🏦 Tạo Chi Tiền Gửi (CTG)'}>
       <div className="grid grid-cols-2 gap-3">
-        <Inp label="Số CT" req value={form.so_chung_tu} onChange={sf('so_chung_tu')}
-          hint="Tự sinh, có thể sửa"/>
-        <Inp label="Ngày CT" req type="date" value={form.ngay_chung_tu}
-          onChange={sf('ngay_chung_tu')}/>
+        <Inp label="Số CT" req value={form.so_chung_tu} onChange={sf('so_chung_tu')} hint="Tự sinh, có thể sửa"/>
+        <Inp label="Ngày CT" req type="date" value={form.ngay_chung_tu} onChange={sf('ngay_chung_tu')}/>
         <Sel label="Tài Khoản NH" req value={form.tk_id} onChange={sf('tk_id')}
-          options={accounts.map(a=>({
-            value: a.id,
-            label: `${a.ma_tk} - ${a.ten_tk}`
-          }))}/>
-        <Sel label="Loại Giao Dịch" value={form.loai_giao_dich}
-          onChange={sf('loai_giao_dich')}
+          options={accounts.map(a=>({value:a.id,label:`${a.ma_tk} - ${a.ten_tk}`}))}/>
+        <Sel label="Loại Giao Dịch" value={form.loai_giao_dich} onChange={sf('loai_giao_dich')}
           options={ltypes.map(t=>({value:t.value||t.name||t,label:t.label||t.name||t}))}/>
-        <Inp
-          label={isTTG?'Số Tiền Thu':'Số Tiền Chi'}
-          req type="number" min="0"
+        <Inp label={isTTG?'Số Tiền Thu':'Số Tiền Chi'} req type="number" min="0"
           value={isTTG?form.so_tien_thu:form.so_tien_chi}
           onChange={sf(isTTG?'so_tien_thu':'so_tien_chi')}/>
         {isTTG
-          ? <Sel label="Khách Hàng" value={form.khach_hang_id||''}
-              onChange={sf('khach_hang_id')}
-              options={customers.map(c=>({
-                value: c.id,
-                label: `${c.TenKH||c.name} (${c.MaKH||c.code})`
-              }))}/>
-          : <Sel label="Nhà Cung Cấp" value={form.supplier_id||''}
-              onChange={sf('supplier_id')}
-              options={suppliers.map(s=>({
-                value: s.id,
-                label: `${s.TenNCC||s.name} (${s.MaNCC||s.code})`
-              }))}/>
+          ?<Sel label="Khách Hàng" value={form.khach_hang_id||''} onChange={sf('khach_hang_id')}
+              options={customers.map(c=>({value:c.id,label:`${c.TenKH||c.name} (${c.MaKH||c.code})`}))}/>
+          :<Sel label="Nhà Cung Cấp" value={form.supplier_id||''} onChange={sf('supplier_id')}
+              options={suppliers.map(s=>({value:s.id,label:`${s.TenNCC||s.name} (${s.MaNCC||s.code})`}))}/>
         }
-        <div className="col-span-2">
-          <Inp label="Nội Dung" value={form.noi_dung} onChange={sf('noi_dung')}/>
-        </div>
+        <div className="col-span-2"><Inp label="Nội Dung" value={form.noi_dung} onChange={sf('noi_dung')}/></div>
       </div>
-
-      {/* Tổng tiền preview */}
-      <div className={`mt-3 p-3 rounded-lg border flex justify-between items-center
-        ${isTTG?'bg-green-50 border-green-200':'bg-red-50 border-red-200'}`}>
-        <span className={`text-sm font-semibold
-          ${isTTG?'text-green-800':'text-red-800'}`}>
-          {isTTG?'Số Tiền Thu:':'Số Tiền Chi:'}
-        </span>
-        <span className={`text-xl font-bold font-mono
-          ${isTTG?'text-green-700':'text-red-700'}`}>
-          {fmt(isTTG?form.so_tien_thu:form.so_tien_chi)}
-        </span>
+      <div className={`mt-3 p-3 rounded-lg border flex justify-between items-center ${isTTG?'bg-green-50 border-green-200':'bg-red-50 border-red-200'}`}>
+        <span className={`text-sm font-semibold ${isTTG?'text-green-800':'text-red-800'}`}>{isTTG?'Số Tiền Thu:':'Số Tiền Chi:'}</span>
+        <span className={`text-xl font-bold font-mono ${isTTG?'text-green-700':'text-red-700'}`}>{fmt(isTTG?form.so_tien_thu:form.so_tien_chi)}</span>
       </div>
-
       <div className="flex justify-end gap-2 mt-4">
         <Btn v="outline" onClick={()=>setModal(false)}>Hủy</Btn>
         <Btn v={isTTG?'success':'danger'} onClick={save}>💾 Lưu</Btn>
@@ -2271,38 +2129,23 @@ const PurchaseInvoice=()=>{
   const [detailModal,setDetailModal]=useState(false)
   const [detailLoading,setDetailLoading]=useState(false)
 
-  const openDetail=async(row)=>{
-    setDetailModal(true); setDetailLoading(true); setDetail(null)
-    const r=await api('GET',`/documents/phieu-nhap-mua/${row.id}`)
-    setDetail(r&&!r.__error?r:{...row,items:[]})
-    setDetailLoading(false)
-  }
-  const makeNewSoCT = (list) => {
-    const ym = new Date().toISOString().slice(0,7).replace('-','')
-    const pre = `PNM-${ym}`
-    const maxNum = (list||[]).reduce((mx, r) => {
-      const soct = r.SoCT || r.so_chung_tu || ''
-      if (!soct.startsWith(pre)) return mx
-      const parts = soct.split('-')
-      const n = parseInt(parts[parts.length-1]) || 0
-      return n > mx ? n : mx
-    }, 0)
+  const makeNewSoCT=(list)=>{
+    const ym=new Date().toISOString().slice(0,7).replace('-','')
+    const pre=`PNM-${ym}`
+    const maxNum=(list||[]).reduce((mx,r)=>{
+      const soct=r.SoCT||r.so_chung_tu||''
+      if(!soct.startsWith(pre)) return mx
+      const n=parseInt(soct.split('-').pop())||0
+      return n>mx?n:mx
+    },0)
     return `${pre}-${String(maxNum+1).padStart(3,'0')}`
   }
 
-  const makeEmptyForm = (list=[]) => ({
-    SoCT: makeNewSoCT(list),
-    NgayCT: today(),
-    MaKyKeToan: kyDefault,
-    MaNCC: '',
-    NguoiGD: '',
-    DienGiai: '',
-    SoHD: '',
-    NgayHD: today(),
-    HinhThucTT: 'Tiền mặt'
+  const makeEmptyForm=(list=[])=>({
+    SoCT:makeNewSoCT(list),NgayCT:today(),MaKyKeToan:kyDefault,
+    MaNCC:'',NguoiGD:'',DienGiai:'',SoHD:'',NgayHD:today(),HinhThucTT:'Tiền mặt'
   })
-
-  const emptyRows = () => [{product_id:'',quantity:1,unit_price:0,tax_rate:0}]
+  const emptyRows=()=>[{product_id:'',quantity:1,unit_price:0,tax_rate:0}]
 
   const [form,setForm]=useState(()=>makeEmptyForm())
   const [rows,setRows]=useState(emptyRows())
@@ -2313,86 +2156,100 @@ const PurchaseInvoice=()=>{
     api('GET','/products').then(d=>setProducts(Array.isArray(d)?d:[]))
   },[])
 
-  // Cập nhật SoCT khi data thay đổi
   useEffect(()=>{
-    if(!loading){
-      setForm(f=>({...f, SoCT: makeNewSoCT(data)}))
-    }
-  },[data, loading])
+    if(!loading&&tab==='list') setForm(f=>({...f,SoCT:makeNewSoCT(data)}))
+  },[data,loading])
+
+  // Hàm xem chi tiết phiếu
+  const openDetail=async(row)=>{
+    setDetailModal(true)
+    setDetailLoading(true)
+    setDetail(null)
+    const r=await api('GET',`/documents/phieu-nhap-mua/${row.id}`)
+    setDetail(r&&!r.__error?r:{...row,items:[]})
+    setDetailLoading(false)
+  }
 
   // Helper tên NCC
-  const getNCCLabel = (id) => {
-    if (!id) return '-'
-    const s = suppliers.find(x => String(x.id) === String(id))
-    return s ? `${s.TenNCC||s.name} (${s.MaNCC||s.code})` : `NCC #${id}`
+  const getNCCLabel=(id)=>{
+    if(!id) return '-'
+    const s=suppliers.find(x=>String(x.id)===String(id))
+    return s?`${s.TenNCC||s.name} (${s.MaNCC||s.code})`:`NCC #${id}`
   }
 
   const save=async()=>{
     if(!form.SoCT||!form.MaNCC){
-      showAlert('Vui lòng điền: Số CT và Nhà Cung Cấp!','danger')
-      return
+      showAlert('Vui lòng điền: Số CT và Nhà Cung Cấp!','danger'); return
     }
-    const validRows = rows.filter(r=>r.product_id && +r.quantity > 0)
+    const validRows=rows.filter(r=>r.product_id&&+r.quantity>0)
     if(!validRows.length){
-      showAlert('Vui lòng thêm ít nhất 1 dòng hàng hóa!','danger')
-      return
+      showAlert('Vui lòng thêm ít nhất 1 dòng hàng hóa!','danger'); return
     }
     const body={
-      NgayCT:form.NgayCT,
-      SoCT:form.SoCT,
-      MaNCC:+form.MaNCC,
-      SoHD:form.SoHD,
-      NgayHD:form.NgayHD,
-      NguoiGD:form.NguoiGD,
-      DienGiai:form.DienGiai,
-      MaKyKeToan:+form.MaKyKeToan,
-      HinhThucTT:form.HinhThucTT,
-      DanhSachHang:validRows.map(r=>({
-        MaHH:+r.product_id,
-        SoLuong:+r.quantity,
-        DonGia:+r.unit_price,
-        GhiChu:''
-      }))
+      NgayCT:form.NgayCT,SoCT:form.SoCT,MaNCC:+form.MaNCC,
+      SoHD:form.SoHD,NgayHD:form.NgayHD,NguoiGD:form.NguoiGD,
+      DienGiai:form.DienGiai,MaKyKeToan:+form.MaKyKeToan,HinhThucTT:form.HinhThucTT,
+      DanhSachHang:validRows.map(r=>({MaHH:+r.product_id,SoLuong:+r.quantity,DonGia:+r.unit_price,GhiChu:''}))
     }
     const r=await api('POST','/documents/phieu-nhap-mua',body)
-    if(r && !r.__error){
+    if(r&&!r.__error){
       showAlert(`Tạo PNM ${form.SoCT} thành công!`)
-      setTab('list')
-      // Load lại rồi reset form + rows
-      const newData = await api('GET','/documents/phieu-nhap-mua')
-      const list = Array.isArray(newData) ? newData : data
+      const newData=await api('GET','/documents/phieu-nhap-mua')
+      const list=Array.isArray(newData)?newData:[]
       setForm(makeEmptyForm(list))
       setRows(emptyRows())
       load()
-    } else {
-      showAlert('Lỗi: '+(r?.message||'Tạo PNM thất bại'),'danger')
-    }
+      setTab('list')
+    } else showAlert('Lỗi: '+(r?.message||'Tạo PNM thất bại'),'danger')
   }
 
-  const total = rows.reduce((s,r)=>s+(+r.quantity)*(+r.unit_price),0)
-  const totalTax = rows.reduce((s,r)=>s+(+r.quantity)*(+r.unit_price)*((+r.tax_rate||0)/100),0)
+  const total=rows.reduce((s,r)=>s+(+r.quantity)*(+r.unit_price),0)
+  const totalTax=rows.reduce((s,r)=>s+(+r.quantity)*(+r.unit_price)*((+r.tax_rate||0)/100),0)
 
   return(<div className="space-y-4">
     {alert&&<Alert msg={alert.msg} type={alert.type} onClose={closeAlert}/>}
+
+    {/* Modal xem chi tiết */}
+    <DetailModal
+      open={detailModal}
+      onClose={()=>{setDetailModal(false);setDetail(null)}}
+      title={`🛒 Chi Tiết Phiếu Nhập Mua - ${detail?.SoCT||''}`}
+      detail={detail}
+      loading={detailLoading}
+      products={products}
+      customers={[]}
+      suppliers={suppliers}/>
+
     <Tabs tabs={[{id:'list',label:'📋 Danh Sách'},{id:'create',label:'+ Tạo Mới'}]}
       active={tab}
       onChange={t=>{
         setTab(t)
-        if(t==='create') setForm(f=>({...f, SoCT: makeNewSoCT(data)}))
+        if(t==='create'){setForm(makeEmptyForm(data));setRows(emptyRows())}
       }}/>
 
-    {tab==='list'&&<Card><CH>
-      <h3 className="font-bold">🛒 Danh Sách Phiếu Nhập Mua</h3>
-      <div className="ml-auto flex gap-2">
-        <Btn v="pdf" size="sm">⬇ PDF</Btn>
-        <Btn v="excel" size="sm">⬇ Excel</Btn>
-      </div>
-    </CH>
+    {/* ── DANH SÁCH ── */}
+    {tab==='list'&&<Card>
+      <CH>
+        <h3 className="font-bold">🛒 Danh Sách Phiếu Nhập Mua</h3>
+        <div className="ml-auto flex gap-2">
+          <Btn v="pdf" size="sm">⬇ PDF</Btn>
+          <Btn v="excel" size="sm">⬇ Excel</Btn>
+        </div>
+      </CH>
+      <p className="px-4 py-1.5 text-xs text-blue-600 bg-blue-50 border-b border-blue-100">
+        💡 Click vào Số CT để xem chi tiết phiếu
+      </p>
       <Tbl data={data} loading={loading} empty="Chưa có phiếu nhập mua" cols={[
-        {k:'SoCT',l:'Số CT',w:'150px',fn:(v,r)=><Code v={v||r.so_phieu}/>},
+        {k:'SoCT',l:'Số CT',w:'160px',fn:(v,r)=>(
+          <button
+            onClick={()=>openDetail(r)}
+            className="text-blue-600 hover:underline font-mono text-xs font-semibold">
+            {v||r.so_phieu||'-'}
+          </button>
+        )},
         {k:'NgayCT',l:'Ngày CT',w:'100px',fn:(v,r)=>fmtDate(v||r.ngay_phieu)},
         {k:'MaNCC',l:'Nhà Cung Cấp',fn:(v,r)=>{
-          const id = v ?? r.supplier_id ?? r.MaNCC
+          const id=v??r.supplier_id??r.MaNCC
           return <span className="font-medium">{getNCCLabel(id)}</span>
         }},
         {k:'TongTien',l:'Tổng TT',w:'130px',r:true,
@@ -2404,71 +2261,43 @@ const PurchaseInvoice=()=>{
       ]}/>
     </Card>}
 
-    {tab==='create'&&<Card><CH>
-      <h3 className="font-bold">🛒 Tạo Phiếu Nhập Mua</h3>
-    </CH>
+    {/* ── TẠO MỚI ── */}
+    {tab==='create'&&<Card>
+      <CH><h3 className="font-bold">🛒 Tạo Phiếu Nhập Mua</h3></CH>
       <CB>
-        {/* Header */}
         <div className="grid grid-cols-3 gap-3 mb-4">
-          <Inp label="Số CT (SoCT)" req value={form.SoCT} onChange={sf('SoCT')}
-            hint="Tự sinh, có thể sửa"/>
-          <Inp label="Ngày CT (NgayCT)" req type="date" value={form.NgayCT}
-            onChange={sf('NgayCT')}/>
-          <Sel label="Kỳ Kế Toán" req value={form.MaKyKeToan}
-            onChange={sf('MaKyKeToan')} options={kyOptions}/>
-
+          <Inp label="Số CT" req value={form.SoCT} onChange={sf('SoCT')} hint="Tự sinh, có thể sửa"/>
+          <Inp label="Ngày CT" req type="date" value={form.NgayCT} onChange={sf('NgayCT')}/>
+          <Sel label="Kỳ Kế Toán" req value={form.MaKyKeToan} onChange={sf('MaKyKeToan')} options={kyOptions}/>
           <div className="col-span-2">
-            <Sel label="Nhà Cung Cấp (MaNCC)" req value={form.MaNCC}
-              onChange={sf('MaNCC')}
-              options={suppliers.map(s=>({
-                value: s.id,
-                label: `${s.TenNCC||s.name} (${s.MaNCC||s.code})`
-              }))}/>
+            <Sel label="Nhà Cung Cấp" req value={form.MaNCC} onChange={sf('MaNCC')}
+              options={suppliers.map(s=>({value:s.id,label:`${s.TenNCC||s.name} (${s.MaNCC||s.code})`}))}/>
           </div>
-          <Sel label="Hình Thức TT" value={form.HinhThucTT}
-            onChange={sf('HinhThucTT')}
+          <Sel label="Hình Thức TT" value={form.HinhThucTT} onChange={sf('HinhThucTT')}
             options={['Tiền mặt','Chuyển khoản','Thẻ']}/>
-
-          <Inp label="Số HĐ (SoHD)" value={form.SoHD} onChange={sf('SoHD')}
-            placeholder="Số hóa đơn NCC cấp"/>
-          <Inp label="Ngày HĐ (NgayHD)" type="date" value={form.NgayHD}
-            onChange={sf('NgayHD')}/>
-          <Inp label="Người Giao Dịch (NguoiGD)" value={form.NguoiGD}
-            onChange={sf('NguoiGD')}/>
-
+          <Inp label="Số HĐ" value={form.SoHD} onChange={sf('SoHD')} placeholder="Số hóa đơn NCC cấp"/>
+          <Inp label="Ngày HĐ" type="date" value={form.NgayHD} onChange={sf('NgayHD')}/>
+          <Inp label="Người Giao Dịch" value={form.NguoiGD} onChange={sf('NguoiGD')}/>
           <div className="col-span-3">
-            <Inp label="Diễn Giải (DienGiai)" value={form.DienGiai}
-              onChange={sf('DienGiai')}/>
+            <Inp label="Diễn Giải" value={form.DienGiai} onChange={sf('DienGiai')}/>
           </div>
         </div>
 
-        {/* Chi tiết hàng hóa */}
-        <p className="text-xs font-bold text-gray-600 mb-2">
-          Danh Sách Hàng Hóa (DanhSachHang):
-        </p>
-        <DetailTbl rows={rows} setRows={setRows} products={products}
-          color="blue" hasTax={true}/>
+        <p className="text-xs font-bold text-gray-600 mb-2">Danh Sách Hàng Hóa:</p>
+        <DetailTbl rows={rows} setRows={setRows} products={products} color="blue" hasTax={true}/>
 
-        {/* Tổng cộng */}
-        <div className="mt-3 grid grid-cols-2 gap-3">
-          <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-            <div className="flex justify-between text-sm">
-              <span className="text-blue-700 font-semibold">Tổng Tiền Hàng:</span>
-              <span className="font-bold font-mono text-blue-800">{fmt(total)}</span>
-            </div>
-            <div className="flex justify-between text-sm mt-1">
-              <span className="text-orange-600 font-semibold">Tiền Thuế:</span>
-              <span className="font-bold font-mono text-orange-600">{fmt(totalTax)}</span>
-            </div>
-            <div className="flex justify-between text-base mt-2 pt-2 border-t border-blue-200">
-              <span className="text-blue-900 font-bold">Tổng Thanh Toán:</span>
-              <span className="font-bold font-mono text-blue-900">{fmt(total+totalTax)}</span>
-            </div>
+        <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex justify-between text-sm mb-1">
+            <span className="text-blue-700 font-semibold">Tổng Tiền Hàng:</span>
+            <span className="font-bold font-mono text-blue-800">{fmt(total)}</span>
           </div>
-          <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-500 space-y-1">
-            <div>📌 <b>Số HĐ:</b> Số hóa đơn do nhà cung cấp cấp (nhập tay)</div>
-            <div>📌 <b>%Thuế:</b> Nhập % thuế GTGT cho từng dòng hàng</div>
-            <div>📌 <b>Số CT:</b> Tự sinh tăng dần, có thể sửa thủ công</div>
+          <div className="flex justify-between text-sm mb-1">
+            <span className="text-orange-600 font-semibold">Tiền Thuế:</span>
+            <span className="font-bold font-mono text-orange-600">{fmt(totalTax)}</span>
+          </div>
+          <div className="flex justify-between text-base pt-2 border-t border-blue-200">
+            <span className="text-blue-900 font-bold">Tổng Thanh Toán:</span>
+            <span className="font-bold font-mono text-blue-900">{fmt(total+totalTax)}</span>
           </div>
         </div>
       </CB>
@@ -2490,48 +2319,31 @@ const SalesOrder=()=>{
   const [tab,setTab]=useState('list')
   const [customers,setCustomers]=useState([])
   const [products,setProducts]=useState([])
-  const [invoiceTemplates,setInvoiceTemplates]=useState([])  // ← thêm
+  const [invoiceTemplates,setInvoiceTemplates]=useState([])
   const {options:kyOptions,defaultKy:kyDefault}=useKyKeToan()
   const [alert,showAlert,closeAlert]=useAlert()
   const [detail,setDetail]=useState(null)
   const [detailModal,setDetailModal]=useState(false)
   const [detailLoading,setDetailLoading]=useState(false)
 
-  const openDetail=async(row)=>{
-    setDetailModal(true); setDetailLoading(true); setDetail(null)
-    const r=await api('GET',`/documents/phieu-ban-hang/${row.id}`)
-    setDetail(r&&!r.__error?r:{...row,items:[]})
-    setDetailLoading(false)
-  }
-
-  const makeNewSoCT = (list) => {
-    const ym = new Date().toISOString().slice(0,7).replace('-','')
-    const pre = `PBH-${ym}`
-    const maxNum = (list||[]).reduce((mx, r) => {
-      const soct = r.SoCT || r.so_chung_tu || ''
-      if (!soct.startsWith(pre)) return mx
-      const parts = soct.split('-')
-      const n = parseInt(parts[parts.length-1]) || 0
-      return n > mx ? n : mx
-    }, 0)
+  const makeNewSoCT=(list)=>{
+    const ym=new Date().toISOString().slice(0,7).replace('-','')
+    const pre=`PBH-${ym}`
+    const maxNum=(list||[]).reduce((mx,r)=>{
+      const soct=r.SoCT||r.so_chung_tu||''
+      if(!soct.startsWith(pre)) return mx
+      const n=parseInt(soct.split('-').pop())||0
+      return n>mx?n:mx
+    },0)
     return `${pre}-${String(maxNum+1).padStart(3,'0')}`
   }
 
-  const makeEmptyForm = (list=[]) => ({
-    SoCT: makeNewSoCT(list),
-    NgayCT: today(),
-    MaKyKeToan: kyDefault,
-    MaKH: '',
-    NguoiGD: '',
-    DienGiai: '',
-    SoHD: '',
-    NgayHD: today(),
-    HinhThucTT: 'Tiền mặt',
-    SoSeri: '',
-    KyHieuHD: ''
+  const makeEmptyForm=(list=[])=>({
+    SoCT:makeNewSoCT(list),NgayCT:today(),MaKyKeToan:kyDefault,
+    MaKH:'',NguoiGD:'',DienGiai:'',SoHD:'',NgayHD:today(),
+    HinhThucTT:'Tiền mặt',SoSeri:'',KyHieuHD:''
   })
-
-  const emptyRows = () => [{product_id:'',quantity:1,unit_price:0}]
+  const emptyRows=()=>[{product_id:'',quantity:1,unit_price:0}]
 
   const [form,setForm]=useState(()=>makeEmptyForm())
   const [rows,setRows]=useState(emptyRows())
@@ -2540,100 +2352,111 @@ const SalesOrder=()=>{
   useEffect(()=>{
     api('GET','/customers').then(d=>setCustomers(Array.isArray(d)?d:[]))
     api('GET','/products').then(d=>setProducts(Array.isArray(d)?d:[]))
-    // Load mẫu hóa đơn từ system-config
     api('GET','/system-config/mau_hoa_don').then(d=>{
       setInvoiceTemplates(Array.isArray(d?.data)?d.data:[])
     })
   },[])
 
-  // Cập nhật SoCT khi data thay đổi
   useEffect(()=>{
-    if(!loading){
-      setForm(f=>({...f, SoCT: makeNewSoCT(data)}))
-    }
-  },[data, loading])
+    if(!loading&&tab==='list') setForm(f=>({...f,SoCT:makeNewSoCT(data)}))
+  },[data,loading])
 
-  // Khi chọn mẫu HĐ → tự điền KyHieuHD
-  const onSelectTemplate = (e) => {
-    const val = e.target.value
-    const tmpl = invoiceTemplates.find(t=>t.code===val)
-    setForm(f=>({
-      ...f,
-      SoSeri: val,
-      KyHieuHD: tmpl?.ky_hieu || ''
-    }))
+  // Hàm xem chi tiết phiếu
+  const openDetail=async(row)=>{
+    setDetailModal(true)
+    setDetailLoading(true)
+    setDetail(null)
+    const r=await api('GET',`/documents/phieu-ban-hang/${row.id}`)
+    setDetail(r&&!r.__error?r:{...row,items:[]})
+    setDetailLoading(false)
   }
 
-  const getKHLabel = (id) => {
-    if (!id) return '-'
-    const c = customers.find(x => String(x.id) === String(id))
-    return c ? `${c.TenKH||c.name} (${c.MaKH||c.code})` : `KH #${id}`
+  // Khi chọn mẫu HĐ → tự điền KyHieuHD
+  const onSelectTemplate=(e)=>{
+    const val=e.target.value
+    const tmpl=invoiceTemplates.find(t=>t.code===val)
+    setForm(f=>({...f,SoSeri:val,KyHieuHD:tmpl?.ky_hieu||''}))
+  }
+
+  // Helper tên KH
+  const getKHLabel=(id)=>{
+    if(!id) return '-'
+    const c=customers.find(x=>String(x.id)===String(id))
+    return c?`${c.TenKH||c.name} (${c.MaKH||c.code})`:`KH #${id}`
   }
 
   const save=async()=>{
     if(!form.SoCT||!form.MaKH){
-      showAlert('Vui lòng điền: Số CT và Khách Hàng!','danger')
-      return
+      showAlert('Vui lòng điền: Số CT và Khách Hàng!','danger'); return
     }
-    const validRows = rows.filter(r=>r.product_id && +r.quantity > 0)
+    const validRows=rows.filter(r=>r.product_id&&+r.quantity>0)
     if(!validRows.length){
-      showAlert('Vui lòng thêm ít nhất 1 dòng hàng hóa!','danger')
-      return
+      showAlert('Vui lòng thêm ít nhất 1 dòng hàng hóa!','danger'); return
     }
     const body={
-      NgayCT: form.NgayCT,
-      SoCT: form.SoCT,
-      MaKH: +form.MaKH,
-      SoHD: form.SoHD,
-      NgayHD: form.NgayHD,
-      NguoiGD: form.NguoiGD,
-      DienGiai: form.DienGiai,
-      MaKyKeToan: +form.MaKyKeToan,
-      HinhThucTT: form.HinhThucTT,
-      DanhSachHang: validRows.map(r=>({
-        MaHH: +r.product_id,
-        SoLuong: +r.quantity,
-        DonGia: +r.unit_price,
-        GhiChu: ''
-      }))
+      NgayCT:form.NgayCT,SoCT:form.SoCT,MaKH:+form.MaKH,
+      SoHD:form.SoHD,NgayHD:form.NgayHD,NguoiGD:form.NguoiGD,
+      DienGiai:form.DienGiai,MaKyKeToan:+form.MaKyKeToan,HinhThucTT:form.HinhThucTT,
+      DanhSachHang:validRows.map(r=>({MaHH:+r.product_id,SoLuong:+r.quantity,DonGia:+r.unit_price,GhiChu:''}))
     }
     const r=await api('POST','/documents/phieu-ban-hang',body)
-    if(r && !r.__error){
+    if(r&&!r.__error){
       showAlert(`Tạo PBH ${form.SoCT} thành công!`)
-      setTab('list')
-      const newData = await api('GET','/documents/phieu-ban-hang')
-      const list = Array.isArray(newData) ? newData : data
+      const newData=await api('GET','/documents/phieu-ban-hang')
+      const list=Array.isArray(newData)?newData:[]
       setForm(makeEmptyForm(list))
       setRows(emptyRows())
       load()
-    } else {
-      showAlert('Lỗi: '+(r?.message||'Tạo PBH thất bại'),'danger')
-    }
+      setTab('list')
+    } else showAlert('Lỗi: '+(r?.message||'Tạo PBH thất bại'),'danger')
   }
 
-  const total = rows.reduce((s,r)=>s+(+r.quantity)*(+r.unit_price),0)
+  const total=rows.reduce((s,r)=>s+(+r.quantity)*(+r.unit_price),0)
 
   return(<div className="space-y-4">
     {alert&&<Alert msg={alert.msg} type={alert.type} onClose={closeAlert}/>}
+
+    {/* Modal xem chi tiết */}
+    <DetailModal
+      open={detailModal}
+      onClose={()=>{setDetailModal(false);setDetail(null)}}
+      title={`🏪 Chi Tiết Phiếu Bán Hàng - ${detail?.SoCT||''}`}
+      detail={detail}
+      loading={detailLoading}
+      products={products}
+      customers={customers}
+      suppliers={[]}/>
+
     <Tabs tabs={[{id:'list',label:'📋 Danh Sách'},{id:'create',label:'+ Tạo Mới'}]}
       active={tab}
       onChange={t=>{
         setTab(t)
-        if(t==='create') setForm(f=>({...f, SoCT: makeNewSoCT(data)}))
+        if(t==='create'){setForm(makeEmptyForm(data));setRows(emptyRows())}
       }}/>
 
-    {tab==='list'&&<Card><CH>
-      <h3 className="font-bold">🏪 Danh Sách Phiếu Bán Hàng</h3>
-      <div className="ml-auto flex gap-2">
-        <Btn v="pdf" size="sm">⬇ PDF</Btn>
-        <Btn v="excel" size="sm">⬇ Excel</Btn>
-      </div>
-    </CH>
+    {/* ── DANH SÁCH ── */}
+    {tab==='list'&&<Card>
+      <CH>
+        <h3 className="font-bold">🏪 Danh Sách Phiếu Bán Hàng</h3>
+        <div className="ml-auto flex gap-2">
+          <Btn v="pdf" size="sm">⬇ PDF</Btn>
+          <Btn v="excel" size="sm">⬇ Excel</Btn>
+        </div>
+      </CH>
+      <p className="px-4 py-1.5 text-xs text-blue-600 bg-blue-50 border-b border-blue-100">
+        💡 Click vào Số CT để xem chi tiết phiếu
+      </p>
       <Tbl data={data} loading={loading} empty="Chưa có phiếu bán hàng" cols={[
-        {k:'SoCT',l:'Số CT',w:'150px',fn:(v,r)=><Code v={v||r.so_phieu}/>},
+        {k:'SoCT',l:'Số CT',w:'160px',fn:(v,r)=>(
+          <button
+            onClick={()=>openDetail(r)}
+            className="text-blue-600 hover:underline font-mono text-xs font-semibold">
+            {v||r.so_phieu||'-'}
+          </button>
+        )},
         {k:'NgayCT',l:'Ngày CT',w:'100px',fn:(v,r)=>fmtDate(v||r.ngay_phieu)},
         {k:'MaKH',l:'Khách Hàng',fn:(v,r)=>{
-          const id = v ?? r.customer_id ?? r.MaKH
+          const id=v??r.customer_id??r.MaKH
           return <span className="font-medium">{getKHLabel(id)}</span>
         }},
         {k:'TongTien',l:'Tổng TT',w:'130px',r:true,
@@ -2645,37 +2468,26 @@ const SalesOrder=()=>{
       ]}/>
     </Card>}
 
-    {tab==='create'&&<Card><CH>
-      <h3 className="font-bold">🏪 Tạo Phiếu Bán Hàng</h3>
-    </CH>
+    {/* ── TẠO MỚI ── */}
+    {tab==='create'&&<Card>
+      <CH><h3 className="font-bold">🏪 Tạo Phiếu Bán Hàng</h3></CH>
       <CB>
         <div className="grid grid-cols-3 gap-3 mb-4">
-          <Inp label="Số CT" req value={form.SoCT} onChange={sf('SoCT')}
-            hint="Tự sinh, có thể sửa"/>
-          <Inp label="Ngày CT" req type="date" value={form.NgayCT}
-            onChange={sf('NgayCT')}/>
-          <Sel label="Kỳ Kế Toán" req value={form.MaKyKeToan}
-            onChange={sf('MaKyKeToan')} options={kyOptions}/>
-
+          <Inp label="Số CT" req value={form.SoCT} onChange={sf('SoCT')} hint="Tự sinh, có thể sửa"/>
+          <Inp label="Ngày CT" req type="date" value={form.NgayCT} onChange={sf('NgayCT')}/>
+          <Sel label="Kỳ Kế Toán" req value={form.MaKyKeToan} onChange={sf('MaKyKeToan')} options={kyOptions}/>
           <div className="col-span-2">
-            <Sel label="Khách Hàng" req value={form.MaKH}
-              onChange={sf('MaKH')}
-              options={customers.map(c=>({
-                value: c.id,
-                label: `${c.TenKH||c.name} (${c.MaKH||c.code})`
-              }))}/>
+            <Sel label="Khách Hàng" req value={form.MaKH} onChange={sf('MaKH')}
+              options={customers.map(c=>({value:c.id,label:`${c.TenKH||c.name} (${c.MaKH||c.code})`}))}/>
           </div>
-          <Sel label="Hình Thức TT" value={form.HinhThucTT}
-            onChange={sf('HinhThucTT')}
+          <Sel label="Hình Thức TT" value={form.HinhThucTT} onChange={sf('HinhThucTT')}
             options={['Tiền mặt','Chuyển khoản','Thẻ']}/>
 
-          {/* Số Seri - dropdown từ mẫu hóa đơn */}
+          {/* Số Seri - dropdown nếu có mẫu HĐ, không thì nhập tay */}
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-semibold text-gray-600">
-              Ký Hiệu Mẫu HĐ (Số Seri)
-            </label>
-            {invoiceTemplates.length > 0
-              ? <select value={form.SoSeri} onChange={onSelectTemplate}
+            <label className="text-xs font-semibold text-gray-600">Ký Hiệu Mẫu HĐ (Số Seri)</label>
+            {invoiceTemplates.length>0
+              ?<select value={form.SoSeri} onChange={onSelectTemplate}
                   className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500">
                   <option value="">-- Chọn mẫu HĐ --</option>
                   {invoiceTemplates.map(t=>(
@@ -2684,46 +2496,25 @@ const SalesOrder=()=>{
                     </option>
                   ))}
                 </select>
-              : <div className="flex gap-2">
-                  <input value={form.SoSeri} onChange={sf('SoSeri')}
-                    placeholder="VD: 1C22TAA"
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
-                  <span className="text-xs text-orange-500 self-center whitespace-nowrap">
-                    ⚠️ Chưa có mẫu HĐ
-                  </span>
-                </div>
+              :<input value={form.SoSeri} onChange={sf('SoSeri')}
+                  placeholder="VD: 1C22TAA (nhập tay)"
+                  className="px-3 py-2 border border-orange-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"/>
             }
             {!invoiceTemplates.length&&(
-              <span className="text-xs text-gray-400">
-                Vào <b>Danh Mục → Mẫu Hóa Đơn</b> để khai báo trước
+              <span className="text-xs text-orange-500">
+                ⚠️ Vào <b>Danh Mục → Mẫu Hóa Đơn</b> để khai báo
               </span>
             )}
           </div>
 
-          <Inp label="Ký Hiệu HĐ" value={form.KyHieuHD}
-            onChange={sf('KyHieuHD')}
-            placeholder="VD: AA/24E"/>
-          <Inp label="Số HĐ" value={form.SoHD}
-            onChange={sf('SoHD')}
-            placeholder="Số thứ tự HĐ"/>
-          <Inp label="Ngày HĐ" type="date" value={form.NgayHD}
-            onChange={sf('NgayHD')}/>
-          <Inp label="Người Giao Dịch" value={form.NguoiGD}
-            onChange={sf('NguoiGD')}/>
-
+          <Inp label="Ký Hiệu HĐ" value={form.KyHieuHD} onChange={sf('KyHieuHD')} placeholder="VD: AA/24E"/>
+          <Inp label="Số HĐ" value={form.SoHD} onChange={sf('SoHD')} placeholder="Số thứ tự HĐ"/>
+          <Inp label="Ngày HĐ" type="date" value={form.NgayHD} onChange={sf('NgayHD')}/>
+          <Inp label="Người Giao Dịch" value={form.NguoiGD} onChange={sf('NguoiGD')}/>
           <div className="col-span-3">
             <Inp label="Diễn Giải" value={form.DienGiai} onChange={sf('DienGiai')}/>
           </div>
         </div>
-
-        {/* Ghi chú hướng dẫn nếu chưa có mẫu HĐ */}
-        {!invoiceTemplates.length&&(
-          <div className="mb-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-xs text-yellow-800">
-            💡 <b>Hướng dẫn:</b> Số Seri (Ký hiệu mẫu HĐ) là ký hiệu do cơ quan thuế cấp
-            (VD: <code>1C22TAA</code>, <code>AA/24E</code>). Vào{' '}
-            <b>Danh Mục → Mẫu Hóa Đơn</b> để khai báo sẵn, sau đó chọn từ dropdown.
-          </div>
-        )}
 
         <p className="text-xs font-bold text-gray-600 mb-2">Danh Sách Hàng Hóa:</p>
         <DetailTbl rows={rows} setRows={setRows} products={products} color="green"/>
@@ -2744,125 +2535,135 @@ const SalesOrder=()=>{
     </Card>}
   </div>)
 }
-//cap-nhat-05052026
-const DetailModal = ({open, onClose, title, detail, loading, products, customers, suppliers}) => {
-  if (!open) return null
+const DetailModal=({open,onClose,title,detail,loading,products=[],customers=[],suppliers=[]})=>{
+  if(!open) return null
 
-  const getProductName = (id) => {
-    const p = products.find(x => String(x.id) === String(id))
-    return p ? `${p.MaHH||p.code} - ${p.TenHH||p.name}` : `SP #${id}`
+  const getProductName=(id)=>{
+    if(!id) return '-'
+    const p=(products||[]).find(x=>String(x.id)===String(id))
+    return p?`${p.MaHH||p.code||''} - ${p.TenHH||p.name||''}`:`SP #${id}`
   }
-  const getKHName = (id) => {
-    if (!id) return '-'
-    const c = customers.find(x => String(x.id) === String(id))
-    return c ? `${c.TenKH||c.name} (${c.MaKH||c.code})` : `KH #${id}`
+  const getKHName=(id)=>{
+    if(!id) return '-'
+    const c=(customers||[]).find(x=>String(x.id)===String(id))
+    return c?`${c.TenKH||c.name||''} (${c.MaKH||c.code||''})`:`KH #${id}`
   }
-  const getNCCName = (id) => {
-    if (!id) return '-'
-    const s = suppliers.find(x => String(x.id) === String(id))
-    return s ? `${s.TenNCC||s.name} (${s.MaNCC||s.code})` : `NCC #${id}`
+  const getNCCName=(id)=>{
+    if(!id) return '-'
+    const s=(suppliers||[]).find(x=>String(x.id)===String(id))
+    return s?`${s.TenNCC||s.name||''} (${s.MaNCC||s.code||''})`:`NCC #${id}`
   }
 
-  const total = (detail?.items||[]).reduce((s,i)=>s+(i.total||0), 0)
+  const items=detail?.items||[]
+  const total=items.reduce((s,i)=>s+(+(i.total||0)),0)
 
-  return (
+  return(
     <Modal open={open} onClose={onClose} title={title} size="lg">
-      {loading || !detail
-        ? <div className="py-12 text-center"><div className="inline-block w-8 h-8 border-4 border-gray-200 border-t-blue-600 rounded-full animate-spin"/></div>
-        : <>
-          {/* Thông tin header */}
+      {loading||!detail
+        ?<div className="py-12 text-center">
+          <div className="inline-block w-8 h-8 border-4 border-gray-200 border-t-blue-600 rounded-full animate-spin"/>
+          <p className="text-sm text-gray-500 mt-3">Đang tải...</p>
+        </div>
+        :<>
+          {/* Header info */}
           <div className="grid grid-cols-2 gap-x-6 gap-y-2 mb-4 p-4 bg-gray-50 rounded-lg text-sm">
             <div className="flex gap-2">
-              <span className="text-gray-500 w-24 flex-shrink-0">Số CT:</span>
-              <strong className="font-mono">{detail.SoCT}</strong>
+              <span className="text-gray-500 w-28 flex-shrink-0">Số CT:</span>
+              <strong className="font-mono">{detail.SoCT||'-'}</strong>
             </div>
             <div className="flex gap-2">
-              <span className="text-gray-500 w-24 flex-shrink-0">Ngày CT:</span>
+              <span className="text-gray-500 w-28 flex-shrink-0">Ngày CT:</span>
               <strong>{fmtDate(detail.NgayCT)}</strong>
             </div>
-            {detail.MaKH !== undefined && (
+            {/* Khách hàng - phiếu thu, bán hàng, bán lẻ */}
+            {(detail.MaKH!==undefined||detail.KhachHang!==undefined)&&(
               <div className="flex gap-2 col-span-2">
-                <span className="text-gray-500 w-24 flex-shrink-0">Khách Hàng:</span>
-                <strong>{detail.KhachHang || getKHName(detail.MaKH)}</strong>
+                <span className="text-gray-500 w-28 flex-shrink-0">Khách Hàng:</span>
+                <strong>{detail.KhachHang||getKHName(detail.MaKH)}</strong>
               </div>
             )}
-            {detail.KhachHang !== undefined && detail.MaKH === undefined && (
+            {/* Nhà cung cấp - phiếu chi, nhập mua */}
+            {detail.MaNCC!==undefined&&(
               <div className="flex gap-2 col-span-2">
-                <span className="text-gray-500 w-24 flex-shrink-0">Khách Hàng:</span>
-                <strong>{detail.KhachHang || '-'}</strong>
-              </div>
-            )}
-            {detail.MaNCC !== undefined && (
-              <div className="flex gap-2 col-span-2">
-                <span className="text-gray-500 w-24 flex-shrink-0">Nhà CC:</span>
+                <span className="text-gray-500 w-28 flex-shrink-0">Nhà CC:</span>
                 <strong>{getNCCName(detail.MaNCC)}</strong>
               </div>
             )}
-            {detail.TienThu !== undefined && (
+            {/* Tiền thu */}
+            {detail.TienThu!==undefined&&(
               <div className="flex gap-2">
-                <span className="text-gray-500 w-24 flex-shrink-0">Số Tiền Thu:</span>
+                <span className="text-gray-500 w-28 flex-shrink-0">Số Tiền Thu:</span>
                 <strong className="text-green-700 font-mono">{fmt(detail.TienThu)}</strong>
               </div>
             )}
-            {detail.TienChi !== undefined && (
+            {/* Tiền chi */}
+            {detail.TienChi!==undefined&&(
               <div className="flex gap-2">
-                <span className="text-gray-500 w-24 flex-shrink-0">Số Tiền Chi:</span>
+                <span className="text-gray-500 w-28 flex-shrink-0">Số Tiền Chi:</span>
                 <strong className="text-red-700 font-mono">{fmt(detail.TienChi)}</strong>
               </div>
             )}
-            {detail.so_tien_thu !== undefined && (
+            {/* TTG */}
+            {detail.so_tien_thu!==undefined&&(
               <div className="flex gap-2">
-                <span className="text-gray-500 w-24 flex-shrink-0">Số Tiền Thu:</span>
+                <span className="text-gray-500 w-28 flex-shrink-0">Số Tiền Thu:</span>
                 <strong className="text-green-700 font-mono">{fmt(detail.so_tien_thu)}</strong>
               </div>
             )}
-            {detail.so_tien_chi !== undefined && (
+            {/* CTG */}
+            {detail.so_tien_chi!==undefined&&(
               <div className="flex gap-2">
-                <span className="text-gray-500 w-24 flex-shrink-0">Số Tiền Chi:</span>
+                <span className="text-gray-500 w-28 flex-shrink-0">Số Tiền Chi:</span>
                 <strong className="text-red-700 font-mono">{fmt(detail.so_tien_chi)}</strong>
               </div>
             )}
-            {detail.HinhThucTT && (
+            {detail.HinhThucTT&&(
               <div className="flex gap-2">
-                <span className="text-gray-500 w-24 flex-shrink-0">Hình Thức TT:</span>
+                <span className="text-gray-500 w-28 flex-shrink-0">Hình Thức TT:</span>
                 <strong>{detail.HinhThucTT}</strong>
               </div>
             )}
-            {detail.loai_giao_dich && (
+            {detail.loai_giao_dich&&(
               <div className="flex gap-2">
-                <span className="text-gray-500 w-24 flex-shrink-0">Loại GD:</span>
+                <span className="text-gray-500 w-28 flex-shrink-0">Loại GD:</span>
                 <strong>{detail.loai_giao_dich}</strong>
               </div>
             )}
-            {detail.SoHD && (
+            {detail.SoHD&&(
               <div className="flex gap-2">
-                <span className="text-gray-500 w-24 flex-shrink-0">Số HĐ:</span>
+                <span className="text-gray-500 w-28 flex-shrink-0">Số HĐ:</span>
                 <strong>{detail.SoHD}</strong>
               </div>
             )}
-            {(detail.DienGiai||detail.noi_dung) && (
+            {(detail.DienGiai||detail.noi_dung)&&(
               <div className="flex gap-2 col-span-2">
-                <span className="text-gray-500 w-24 flex-shrink-0">Diễn Giải:</span>
+                <span className="text-gray-500 w-28 flex-shrink-0">Diễn Giải:</span>
                 <strong>{detail.DienGiai||detail.noi_dung}</strong>
               </div>
             )}
             <div className="flex gap-2">
-              <span className="text-gray-500 w-24 flex-shrink-0">Trạng Thái:</span>
-              <Badge v={detail.TrangThai==='POSTED'||detail.trang_thai==='POSTED'?'success':'warning'}>
+              <span className="text-gray-500 w-28 flex-shrink-0">Trạng Thái:</span>
+              <Badge v={(detail.TrangThai||detail.trang_thai)==='POSTED'?'success':'warning'}>
                 {detail.TrangThai||detail.trang_thai||'DRAFT'}
               </Badge>
             </div>
+            {detail.TongTien&&(
+              <div className="flex gap-2">
+                <span className="text-gray-500 w-28 flex-shrink-0">Tổng Tiền:</span>
+                <strong className="text-blue-700 font-mono">{fmt(detail.TongTien)}</strong>
+              </div>
+            )}
           </div>
 
           {/* Chi tiết hàng hóa */}
-          {detail.items && detail.items.length > 0 && (
+          {items.length>0&&(
             <div>
               <p className="text-xs font-bold text-gray-600 mb-2">📦 Chi Tiết Hàng Hóa:</p>
               <div className="border border-gray-200 rounded-lg overflow-hidden">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-3 py-2 text-left text-xs font-bold text-gray-600">STT</th>
+                      <th className="px-3 py-2 text-left text-xs font-bold text-gray-600 w-10">STT</th>
                       <th className="px-3 py-2 text-left text-xs font-bold text-gray-600">Hàng Hóa</th>
                       <th className="px-3 py-2 text-right text-xs font-bold text-gray-600 w-16">SL</th>
                       <th className="px-3 py-2 text-right text-xs font-bold text-gray-600 w-28">Đơn Giá</th>
@@ -2870,14 +2671,14 @@ const DetailModal = ({open, onClose, title, detail, loading, products, customers
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {detail.items.map((item,i)=>(
+                    {items.map((item,i)=>(
                       <tr key={i} className="hover:bg-gray-50">
                         <td className="px-3 py-2 text-center text-gray-400 text-xs">{i+1}</td>
-                        <td className="px-3 py-2 text-sm">{getProductName(item.product_id)}</td>
+                        <td className="px-3 py-2">{getProductName(item.product_id)}</td>
                         <td className="px-3 py-2 text-right font-mono text-xs">{fmtN(item.quantity)}</td>
                         <td className="px-3 py-2 text-right font-mono text-xs">{fmtN(item.unit_price)}</td>
                         <td className="px-3 py-2 text-right font-mono text-xs font-semibold text-blue-700">
-                          {fmtN(item.total||item.quantity*item.unit_price)}
+                          {fmtN(item.total||(item.quantity*item.unit_price))}
                         </td>
                       </tr>
                     ))}
@@ -2896,7 +2697,6 @@ const DetailModal = ({open, onClose, title, detail, loading, products, customers
           )}
 
           <div className="flex justify-end gap-2 mt-4">
-            <Btn v="pdf" size="sm">🖨️ In</Btn>
             <Btn v="outline" onClick={onClose}>Đóng</Btn>
           </div>
         </>

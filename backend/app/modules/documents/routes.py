@@ -218,7 +218,30 @@ def get_bao_co(db: Session = Depends(get_db)):
         ) for b, d in rows
     ]
 
-
+@router.get("/documents/bao-co/{doc_id}")
+def get_bao_co_detail(doc_id: int, db: Session = Depends(get_db)):
+    result = (
+        db.query(BankStatement, Document)
+        .join(Document, BankStatement.document_id == Document.id)
+        .filter(
+            BankStatement.id == doc_id,
+            BankStatement.statement_type == "BC"
+        )
+        .first()
+    )
+    if not result:
+        raise HTTPException(404, "Không tìm thấy phiếu báo có")
+    b, d = result
+    return {
+        "id": b.id,
+        "SoCT": d.document_number,
+        "NgayCT": str(d.document_date),
+        "MaKH": b.customer_id,
+        "SoTien": float(b.amount or 0),
+        "DienGiai": b.notes,
+        "TrangThai": d.status or "DRAFT",
+        "items": []
+    }
 # ============ BÁO NỢ ============
 @router.post("/documents/bao-no", response_model=BaoNoResponse, status_code=201)
 def create_bao_no(data: BaoNoCreate, db: Session = Depends(get_db)):
@@ -271,7 +294,30 @@ def get_bao_no(db: Session = Depends(get_db)):
         ) for b, d in rows
     ]
 
-
+@router.get("/documents/bao-no/{doc_id}")
+def get_bao_no_detail(doc_id: int, db: Session = Depends(get_db)):
+    result = (
+        db.query(BankStatement, Document)
+        .join(Document, BankStatement.document_id == Document.id)
+        .filter(
+            BankStatement.id == doc_id,
+            BankStatement.statement_type == "BN"
+        )
+        .first()
+    )
+    if not result:
+        raise HTTPException(404, "Không tìm thấy phiếu báo nợ")
+    b, d = result
+    return {
+        "id": b.id,
+        "SoCT": d.document_number,
+        "NgayCT": str(d.document_date),
+        "MaNCC": b.customer_id,
+        "SoTien": float(b.amount or 0),
+        "DienGiai": b.notes,
+        "TrangThai": d.status or "DRAFT",
+        "items": []
+    }
 # ============ PHIẾU NHẬP MUA ============
 
 @router.post("/documents/phieu-nhap-mua", response_model=PhieuNhapMuaResponse, status_code=201)
