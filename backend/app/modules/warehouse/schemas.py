@@ -102,7 +102,8 @@ class PhieuXuatKhoResponse(BaseModel):
     id: int
     so_phieu_xuat: str
     ngay_phieu_xuat: date
-    khach_hang_id: Optional[int] = None
+    loai_phieu_xuat: Optional[str] = None   # ← thêm
+    khach_hang_id: Optional[int] = None     # ← thêm
     tong_so_luong: int
     tong_tien: float
     trang_thai: str

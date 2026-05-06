@@ -226,28 +226,61 @@ def get_phieu_xuat_kho(db: Session = Depends(get_db)):
             id=p.id,
             so_phieu_xuat=p.so_phieu_xuat,
             ngay_phieu_xuat=p.ngay_phieu_xuat,
+            loai_phieu_xuat=p.loai_phieu_xuat or "",
             khach_hang_id=p.khach_hang_id,
             tong_so_luong=p.tong_so_luong,
-            tong_tien=float(p.tong_tien),
-            trang_thai=p.trang_thai
+            tong_tien=float(p.tong_tien or 0),
+            trang_thai=p.trang_thai or "DRAFT"
         ) for p in pxks
     ]
 
-@router.get("/documents/phieu-xuat-kho/{id}", response_model=PhieuXuatKhoResponse)
-def get_phieu_xuat_kho_detail(id: int, db: Session = Depends(get_db)):
-    pxk = db.query(WarehouseIssue).filter(WarehouseIssue.id == id).first()
-    if not pxk:
-        raise HTTPException(404, "Phiếu xuất kho không tìm thấy")
-    return PhieuXuatKhoResponse(
-        id=pxk.id,
-        so_phieu_xuat=pxk.so_phieu_xuat,
-        ngay_phieu_xuat=pxk.ngay_phieu_xuat,
-        khach_hang_id=pxk.khach_hang_id,
-        tong_so_luong=pxk.tong_so_luong,
-        tong_tien=float(pxk.tong_tien),
-        trang_thai=pxk.trang_thai
-    )
 
+@router.get("/documents/phieu-xuat-kho/{doc_id}")
+def get_phieu_xuat_kho_detail(doc_id: int, db: Session = Depends(get_db)):
+    pxk = db.query(WarehouseIssue).filter(
+        WarehouseIssue.id == doc_id
+    ).first()
+    if not pxk:
+        raise HTTPException(404, "Không tìm thấy phiếu xuất kho")
+
+    items = db.query(WarehouseIssueItem).filter(
+        WarehouseIssueItem.issue_id == pxk.id
+    ).all()
+
+    customer = None
+    if pxk.khach_hang_id:
+        from app.modules.catalog.models import Customer
+        customer = db.query(Customer).filter(
+            Customer.id == pxk.khach_hang_id
+        ).first()
+
+    return {
+        "id": pxk.id,
+        "SoCT": pxk.so_phieu_xuat,
+        "so_phieu_xuat": pxk.so_phieu_xuat,
+        "NgayCT": str(pxk.ngay_phieu_xuat),
+        "ngay_phieu_xuat": str(pxk.ngay_phieu_xuat),
+        "loai_phieu_xuat": pxk.loai_phieu_xuat or "",
+        "MaKH": pxk.khach_hang_id,
+        "khach_hang_id": pxk.khach_hang_id,
+        "ten_kh": customer.name if customer else "",
+        "nguoi_giao_dich": pxk.nguoi_giao_dich or "",
+        "dien_giai": pxk.dien_giai or "",
+        "TongTien": float(pxk.tong_tien or 0),
+        "tong_tien": float(pxk.tong_tien or 0),
+        "tong_so_luong": pxk.tong_so_luong or 0,
+        "TrangThai": pxk.trang_thai or "DRAFT",
+        "trang_thai": pxk.trang_thai or "DRAFT",
+        "items": [
+            {
+                "product_id": i.product_id,
+                "warehouse_id": i.warehouse_id,
+                "quantity": int(i.quantity),
+                "unit_price": float(i.unit_price),
+                "total": float(i.quantity * i.unit_price)
+            } for i in items
+        ]
+    }
 
 # ============ TỒN KHO ============
 @router.get("/stock-summary", response_model=list[StockSummaryResponse])
