@@ -105,26 +105,62 @@ def get_phieu_nhap_kho(db: Session = Depends(get_db)):
             ngay_phieu_nhap=p.ngay_phieu_nhap,
             nha_cung_cap_id=p.nha_cung_cap_id,
             tong_so_luong=p.tong_so_luong,
-            tong_tien=float(p.tong_tien),
-            trang_thai=p.trang_thai
+            tong_tien=float(p.tong_tien or 0),
+            trang_thai=p.trang_thai,
+            # THÊM loai_phieu_nhap vào response
+            loai_phieu_nhap=p.loai_phieu_nhap or ""
         ) for p in pnks
     ]
 
-@router.get("/documents/phieu-nhap-kho/{id}", response_model=PhieuNhapKhoResponse)
-def get_phieu_nhap_kho_detail(id: int, db: Session = Depends(get_db)):
-    pnk = db.query(WarehouseReceipt).filter(WarehouseReceipt.id == id).first()
-    if not pnk:
-        raise HTTPException(404, "Phiếu nhập kho không tìm thấy")
-    return PhieuNhapKhoResponse(
-        id=pnk.id,
-        so_phieu_nhap=pnk.so_phieu_nhap,
-        ngay_phieu_nhap=pnk.ngay_phieu_nhap,
-        nha_cung_cap_id=pnk.nha_cung_cap_id,
-        tong_so_luong=pnk.tong_so_luong,
-        tong_tien=float(pnk.tong_tien),
-        trang_thai=pnk.trang_thai
-    )
 
+@router.get("/documents/phieu-nhap-kho/{doc_id}")
+def get_phieu_nhap_kho_detail(doc_id: int, db: Session = Depends(get_db)):
+    pnk = db.query(WarehouseReceipt).filter(
+        WarehouseReceipt.id == doc_id
+    ).first()
+    if not pnk:
+        raise HTTPException(404, "Không tìm thấy phiếu nhập kho")
+
+    # Query items - dùng receipt_id
+    items = db.query(WarehouseReceiptItem).filter(
+        WarehouseReceiptItem.receipt_id == pnk.id
+    ).all()
+
+    # Query NCC
+    supplier = None
+    if pnk.nha_cung_cap_id:
+        from app.modules.catalog.models import Supplier
+        supplier = db.query(Supplier).filter(
+            Supplier.id == pnk.nha_cung_cap_id
+        ).first()
+
+    return {
+        "id": pnk.id,
+        "SoCT": pnk.so_phieu_nhap,
+        "so_phieu_nhap": pnk.so_phieu_nhap,
+        "NgayCT": str(pnk.ngay_phieu_nhap),
+        "ngay_phieu_nhap": str(pnk.ngay_phieu_nhap),
+        "loai_phieu_nhap": pnk.loai_phieu_nhap or "",
+        "MaNCC": pnk.nha_cung_cap_id,
+        "nha_cung_cap_id": pnk.nha_cung_cap_id,
+        "ten_ncc": supplier.name if supplier else "",
+        "nguoi_giao_dich": pnk.nguoi_giao_dich or "",
+        "dien_giai": pnk.dien_giai or "",
+        "TongTien": float(pnk.tong_tien or 0),
+        "tong_tien": float(pnk.tong_tien or 0),
+        "tong_so_luong": pnk.tong_so_luong or 0,
+        "TrangThai": pnk.trang_thai or "DRAFT",
+        "trang_thai": pnk.trang_thai or "DRAFT",
+        "items": [
+            {
+                "product_id": i.product_id,
+                "warehouse_id": i.warehouse_id,
+                "quantity": int(i.quantity),
+                "unit_price": float(i.unit_price),
+                "total": float(i.quantity * i.unit_price)
+            } for i in items
+        ]
+    }
 
 # ============ PHIẾU XUẤT KHO ============
 @router.post("/documents/phieu-xuat-kho", response_model=PhieuXuatKhoResponse, status_code=201)

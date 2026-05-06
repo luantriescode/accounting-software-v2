@@ -603,168 +603,439 @@ const FiscalYearFixed = () => (
   />
 )
 
-const WarehouseReceiptPage = () => {
-  const [data, loading, load] = useList('/documents/phieu-nhap-kho')
-  const [tab, setTab] = useState('list')
-  const [warehouses, setWarehouses] = useState([])
-  const [products, setProducts] = useState([])
-  const [form, setForm] = useState({ so_phieu_nhap: '', ngay_phieu_nhap: today(), loai_phieu_nhap: 'NHAP_MUA', nha_cung_cap_id: '', nguoi_giao_dich: '', dien_giai: '', period_id: 1 })
-  const [rows, setRows] = useState([{ product_id: '', warehouse_id: '', quantity: 1, unit_price: 0 }])
-  const [suppliers, setSuppliers] = useState([])
-  const [alert, showAlert, closeAlert] = useAlert()
-  const sf = k => e => setForm(f => ({ ...f, [k]: e.target.value }))
+const WarehouseReceiptPage=()=>{
+  const [data,loading,load]=useList('/documents/phieu-nhap-kho')
+  const [tab,setTab]=useState('list')
+  const [warehouses,setWarehouses]=useState([])
+  const [products,setProducts]=useState([])
+  const [suppliers,setSuppliers]=useState([])
+  const [alert,showAlert,closeAlert]=useAlert()
+  const [detail,setDetail]=useState(null)
+  const [detailModal,setDetailModal]=useState(false)
+  const [detailLoading,setDetailLoading]=useState(false)
 
-  useEffect(() => {
-    api('GET', '/warehouses').then(d => setWarehouses(Array.isArray(d) ? d : []))
-    api('GET', '/products').then(d => setProducts(Array.isArray(d) ? d : []))
-    api('GET', '/suppliers').then(d => setSuppliers(Array.isArray(d) ? d : []))
-  }, [])
+  // ── Tự sinh số phiếu ──
+  const makeNewSoCT=(list)=>{
+    const ym=new Date().toISOString().slice(0,7).replace('-','')
+    const pre=`PNK-${ym}`
+    const maxNum=(list||[]).reduce((mx,r)=>{
+      const soct=r.so_phieu_nhap||''
+      if(!soct.startsWith(pre)) return mx
+      const n=parseInt(soct.split('-').pop())||0
+      return n>mx?n:mx
+    },0)
+    return `${pre}-${String(maxNum+1).padStart(3,'0')}`
+  }
 
-  const upd = (i, k, v) => setRows(rs => rs.map((r, ri) => ri === i ? { ...r, [k]: v } : r))
+  const makeEmptyForm=(list=[])=>({
+    so_phieu_nhap: makeNewSoCT(list),
+    ngay_phieu_nhap: today(),
+    loai_phieu_nhap: 'Nhập từ NCC',
+    nha_cung_cap_id: '',
+    nguoi_giao_dich: '',
+    dien_giai: '',
+    ky_ke_toan_id: 1
+  })
+  const emptyRows=()=>[{product_id:'',warehouse_id:'',quantity:1,unit_price:0}]
 
-  const save = async () => {
-    if (!form.so_phieu_nhap) { showAlert('Vui lòng nhập Số Phiếu!', 'danger'); return }
-    const validRows = rows.filter(r => r.product_id && r.warehouse_id && +r.quantity > 0)
-    if (validRows.length === 0) { showAlert('Vui lòng thêm ít nhất 1 dòng hàng hợp lệ!', 'danger'); return }
+  const [form,setForm]=useState(()=>makeEmptyForm())
+  const [rows,setRows]=useState(emptyRows())
+  const sf=k=>e=>setForm(f=>({...f,[k]:e.target.value}))
 
-    const body = {
-      ...form,
-      period_id: +form.period_id,
-      nha_cung_cap_id: form.nha_cung_cap_id ? +form.nha_cung_cap_id : null,
-      items: validRows.map(r => ({
+  useEffect(()=>{
+    api('GET','/warehouses').then(d=>setWarehouses(Array.isArray(d)?d:[]))
+    api('GET','/products').then(d=>setProducts(Array.isArray(d)?d:[]))
+    api('GET','/suppliers').then(d=>setSuppliers(Array.isArray(d)?d:[]))
+  },[])
+
+  // Cập nhật số phiếu khi data load xong
+  useEffect(()=>{
+    if(!loading&&tab==='list') setForm(f=>({...f,so_phieu_nhap:makeNewSoCT(data)}))
+  },[data,loading])
+
+  // ── Xem chi tiết ──
+  const openDetail=async(row)=>{
+  setDetailModal(true)
+  setDetailLoading(true)
+  setDetail(null)
+  // Dùng row.id để fetch chi tiết
+  const r=await api('GET',`/documents/phieu-nhap-kho/${row.id}`)
+  if(r&&!r.__error){
+    setDetail(r)
+  } else {
+    // Fallback dùng data từ row nếu API lỗi
+    setDetail({
+      SoCT: row.so_phieu_nhap,
+      so_phieu_nhap: row.so_phieu_nhap,
+      NgayCT: row.ngay_phieu_nhap,
+      ngay_phieu_nhap: row.ngay_phieu_nhap,
+      loai_phieu_nhap: row.loai_phieu_nhap||'',
+      MaNCC: row.nha_cung_cap_id,
+      TongTien: row.tong_tien||0,
+      TrangThai: row.trang_thai||'DRAFT',
+      items:[]
+    })
+  }
+  setDetailLoading(false)
+}
+
+  // ── Helpers ──
+  const getNCCLabel=(id)=>{
+    if(!id) return '-'
+    const s=suppliers.find(x=>String(x.id)===String(id))
+    return s?`${s.TenNCC||s.name} (${s.MaNCC||s.code})`:`NCC #${id}`
+  }
+  const getWarehouseName=(id)=>{
+    const w=warehouses.find(x=>String(x.id)===String(id))
+    return w?`${w.MaKho||w.code}`:`Kho #${id}`
+  }
+  const upd=(i,k,v)=>setRows(rs=>rs.map((r,ri)=>ri===i?{...r,[k]:v}:r))
+
+  // ── Lưu phiếu ──
+  const save=async()=>{
+    if(!form.so_phieu_nhap){
+      showAlert('Vui lòng nhập Số Phiếu!','danger'); return
+    }
+    const validRows=rows.filter(r=>r.product_id&&r.warehouse_id&&+r.quantity>0)
+    if(!validRows.length){
+      showAlert('Vui lòng thêm ít nhất 1 dòng hàng hợp lệ!','danger'); return
+    }
+    const body={
+      so_phieu_nhap: form.so_phieu_nhap,
+      ngay_phieu_nhap: form.ngay_phieu_nhap,
+      loai_phieu_nhap: form.loai_phieu_nhap,
+      nha_cung_cap_id: form.nha_cung_cap_id?+form.nha_cung_cap_id:null,
+      nguoi_giao_dich: form.nguoi_giao_dich,
+      dien_giai: form.dien_giai,
+      ky_ke_toan_id: +form.ky_ke_toan_id,
+      items: validRows.map(r=>({
         product_id: +r.product_id,
         warehouse_id: +r.warehouse_id,
         quantity: +r.quantity,
-        unit_price: +r.unit_price,
+        unit_price: +r.unit_price
       }))
     }
-    const r = await api('POST', '/documents/phieu-nhap-kho', body)
-    if (r) { showAlert('Tạo PNK thành công!'); setTab('list'); load() }
-    else showAlert('Lỗi tạo phiếu nhập kho!', 'danger')
+    const r=await api('POST','/documents/phieu-nhap-kho',body)
+    if(r&&!r.__error){
+      showAlert(`Tạo PNK ${form.so_phieu_nhap} thành công!`)
+      const newData=await api('GET','/documents/phieu-nhap-kho')
+      const list=Array.isArray(newData)?newData:[]
+      setForm(makeEmptyForm(list))
+      setRows(emptyRows())
+      load()
+      setTab('list')
+    } else {
+      showAlert('Lỗi: '+(r?.message||'Tạo phiếu nhập kho thất bại'),'danger')
+    }
   }
 
-  const doExport = () => {
-    exportExcel('PhieuNhapKho', 'Phiếu Nhập Kho',
-      ['Số Phiếu', 'Ngày', 'Tổng SL', 'Tổng Tiền', 'Trạng Thái'],
-      data.map(r => [r.so_phieu_nhap || '-', fmtDate(r.ngay_phieu_nhap), r.tong_so_luong || 0, r.tong_tien || 0, r.trang_thai || 'DRAFT'])
-    )
+  const total=rows.reduce((s,r)=>s+(+r.quantity)*(+r.unit_price),0)
+
+  // ── Render chi tiết trong modal (có thêm kho) ──
+  const PNKDetailModal=()=>{
+  if(!detailModal) return null
+
+  const getProductName=(id)=>{
+    if(!id) return '-'
+    const p=products.find(x=>String(x.id)===String(id))
+    return p?`${p.MaHH||p.code||''} - ${p.TenHH||p.name||''}`:`SP #${id}`
   }
 
-  const total = rows.reduce((s, r) => s + (+r.quantity) * (+r.unit_price), 0)
+  const items=detail?.items||[]
+  const totalItems=items.reduce((s,i)=>s+(i.total||(+i.quantity * +i.unit_price)||0),0)
 
-  return (
-    <div className="space-y-4">
-      {alert && <Alert msg={alert.msg} type={alert.type} onClose={closeAlert} />}
-      <Tabs tabs={[{ id: 'list', label: '📋 Danh Sách' }, { id: 'create', label: '+ Tạo Mới' }]} active={tab} onChange={setTab} />
-      {tab === 'list' && (
-        <Card>
-          <CH>
-            <h3 className="font-bold">📥 Danh Sách Phiếu Nhập Kho</h3>
-            <div className="ml-auto flex gap-2">
-              <Btn v="excel" size="sm" onClick={doExport}>⬇ Excel</Btn>
+  return(
+    <Modal open={detailModal}
+      onClose={()=>{setDetailModal(false);setDetail(null)}}
+      title={`📥 Chi Tiết Phiếu Nhập Kho - ${detail?.SoCT||detail?.so_phieu_nhap||''}`}
+      size="lg">
+      {detailLoading||!detail
+        ?<div className="py-12 text-center">
+          <div className="inline-block w-8 h-8 border-4 border-gray-200 border-t-blue-600 rounded-full animate-spin"/>
+          <p className="text-sm text-gray-500 mt-3">Đang tải...</p>
+        </div>
+        :<>
+          {/* ── THÔNG TIN HEADER ── */}
+          <div className="grid grid-cols-2 gap-x-6 gap-y-3 mb-4 p-4 bg-blue-50 rounded-lg text-sm border border-blue-100">
+            <div className="flex gap-2">
+              <span className="text-gray-500 w-32 flex-shrink-0">Số Phiếu:</span>
+              <strong className="font-mono text-blue-700">
+                {detail.SoCT||detail.so_phieu_nhap||'-'}
+              </strong>
             </div>
-          </CH>
-          <Tbl data={data} loading={loading} empty="Chưa có phiếu nhập kho" cols={[
-            { k: 'so_phieu_nhap', l: 'Số Phiếu', w: '140px', fn: v => <Code v={v} /> },
-            { k: 'ngay_phieu_nhap', l: 'Ngày', w: '100px', fn: v => fmtDate(v) },
-            { k: 'loai_phieu_nhap', l: 'Loại', w: '110px', fn: v => <Badge v="primary">{v}</Badge> },
-            { k: 'tong_so_luong', l: 'Tổng SL', w: '80px', r: true },
-            { k: 'tong_tien', l: 'Tổng Tiền', w: '130px', r: true, fn: v => fmt(v) },
-            { k: 'trang_thai', l: 'TT', w: '90px', fn: v => <Badge v={v === 'POSTED' ? 'success' : 'warning'}>{v || 'DRAFT'}</Badge> },
-          ]} />
-        </Card>
-      )}
-      {tab === 'create' && (
-        <Card>
-          <CH><h3 className="font-bold">📥 Tạo Phiếu Nhập Kho</h3></CH>
-          <CB>
-            <div className="grid grid-cols-3 gap-3 mb-4">
-              <Inp label="Số Phiếu Nhập" req value={form.so_phieu_nhap} onChange={sf('so_phieu_nhap')} placeholder="PNK-2026-001" />
-              <Inp label="Ngày Phiếu Nhập" req type="date" value={form.ngay_phieu_nhap} onChange={sf('ngay_phieu_nhap')} />
-              <Sel label="Loại Phiếu Nhập" value={form.loai_phieu_nhap} onChange={sf('loai_phieu_nhap')}
-                options={[{ value: 'NHAP_MUA', label: 'Nhập Mua' }, { value: 'NHAP_CHUYEN_KHO', label: 'Nhập Chuyển Kho' }, { value: 'NHAP_KHAC', label: 'Nhập Khác' }]} />
-              <div className="col-span-2">
-                <Sel label="Nhà Cung Cấp" value={form.nha_cung_cap_id} onChange={sf('nha_cung_cap_id')}
-                  options={suppliers.map(s => ({ value: s.id, label: `${s.code || s.MaNCC} - ${s.name || s.TenNCC}` }))} />
+            <div className="flex gap-2">
+              <span className="text-gray-500 w-32 flex-shrink-0">Ngày Nhập:</span>
+              <strong>{fmtDate(detail.NgayCT||detail.ngay_phieu_nhap)}</strong>
+            </div>
+            <div className="flex gap-2">
+              <span className="text-gray-500 w-32 flex-shrink-0">Loại Phiếu:</span>
+              <Badge v="primary">{detail.loai_phieu_nhap||'-'}</Badge>
+            </div>
+            <div className="flex gap-2">
+              <span className="text-gray-500 w-32 flex-shrink-0">Nhà CC:</span>
+              <strong>
+                {detail.ten_ncc||getNCCLabel(detail.MaNCC||detail.nha_cung_cap_id)||'-'}
+              </strong>
+            </div>
+            {detail.nguoi_giao_dich&&(
+              <div className="flex gap-2">
+                <span className="text-gray-500 w-32 flex-shrink-0">Người GD:</span>
+                <strong>{detail.nguoi_giao_dich}</strong>
               </div>
-              <Inp label="Người Giao Dịch" value={form.nguoi_giao_dich} onChange={sf('nguoi_giao_dich')} />
-              <div className="col-span-3"><Inp label="Diễn Giải" value={form.dien_giai} onChange={sf('dien_giai')} /></div>
+            )}
+            {detail.dien_giai&&(
+              <div className="flex gap-2 col-span-2">
+                <span className="text-gray-500 w-32 flex-shrink-0">Diễn Giải:</span>
+                <strong>{detail.dien_giai}</strong>
+              </div>
+            )}
+            <div className="flex gap-2">
+              <span className="text-gray-500 w-32 flex-shrink-0">Tổng SL:</span>
+              <strong>{fmtN(detail.tong_so_luong||0)}</strong>
             </div>
+            <div className="flex gap-2">
+              <span className="text-gray-500 w-32 flex-shrink-0">Trạng Thái:</span>
+              <Badge v={(detail.TrangThai||detail.trang_thai)==='POSTED'?'success':'warning'}>
+                {detail.TrangThai||detail.trang_thai||'DRAFT'}
+              </Badge>
+            </div>
+          </div>
 
-            <p className="text-xs font-bold text-gray-600 mb-1">Chi Tiết Hàng Hóa:</p>
-            <div className="border border-gray-200 rounded-lg overflow-x-auto">
+          {/* ── BẢNG HÀNG HÓA ── */}
+          <p className="text-xs font-bold text-gray-700 mb-2">
+            📦 Chi Tiết Hàng Nhập
+            <span className="ml-2 font-normal text-gray-400">({items.length} dòng)</span>
+          </p>
+
+          {items.length>0
+            ?<div className="border border-gray-200 rounded-lg overflow-hidden">
               <table className="w-full text-sm">
-                <thead className="bg-blue-50">
+                <thead className="bg-blue-50 border-b-2 border-blue-200">
                   <tr>
-                    <th className="px-3 py-2 text-left text-xs font-bold text-blue-700">Kho Nhập</th>
-                    <th className="px-3 py-2 text-left text-xs font-bold text-blue-700">Mã Hàng</th>
-                    <th className="px-3 py-2 text-left text-xs font-bold text-blue-700">Tên Hàng</th>
-                    <th className="px-3 py-2 text-right text-xs font-bold text-blue-700 w-24">SL</th>
-                    <th className="px-3 py-2 text-right text-xs font-bold text-blue-700 w-32">Đơn Giá</th>
-                    <th className="px-3 py-2 text-right text-xs font-bold text-blue-700 w-32">Thành Tiền</th>
-                    <th className="w-8"></th>
+                    <th className="px-3 py-2 text-center text-xs font-bold text-blue-700 w-10">STT</th>
+                    <th className="px-3 py-2 text-left text-xs font-bold text-blue-700">Tên Hàng Hóa</th>
+                    <th className="px-3 py-2 text-left text-xs font-bold text-blue-700 w-20">Kho</th>
+                    <th className="px-3 py-2 text-right text-xs font-bold text-blue-700 w-16">SL</th>
+                    <th className="px-3 py-2 text-right text-xs font-bold text-blue-700 w-28">Đơn Giá</th>
+                    <th className="px-3 py-2 text-right text-xs font-bold text-blue-700 w-28">Thành Tiền</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {rows.map((r, i) => (
-                    <tr key={i}>
-                      <td className="px-2 py-1.5">
-                        <select value={r.warehouse_id || ''} onChange={e => upd(i, 'warehouse_id', e.target.value)}
-                          className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none">
-                          <option value="">--</option>
-                          {warehouses.map(w => <option key={w.id} value={w.id}>{w.code || w.MaKho}</option>)}
-                        </select>
+                  {items.map((item,i)=>(
+                    <tr key={i} className="hover:bg-blue-50/30">
+                      <td className="px-3 py-2.5 text-center text-gray-400 text-xs">{i+1}</td>
+                      <td className="px-3 py-2.5">
+                        <div className="font-medium text-sm">{getProductName(item.product_id)}</div>
                       </td>
-                      <td className="px-2 py-1.5">
-                        <select value={r.product_id || ''} onChange={e => {
-                          const p = products.find(x => x.id == e.target.value)
-                          upd(i, 'product_id', e.target.value)
-                          if (p) upd(i, 'unit_price', p.unit_price || p.GiaBan || 0)
-                        }} className="w-28 px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none">
-                          <option value="">--</option>
-                          {products.map(p => <option key={p.id} value={p.id}>{p.code || p.MaHH}</option>)}
-                        </select>
+                      <td className="px-3 py-2.5">
+                        <span className="text-xs bg-gray-100 px-2 py-0.5 rounded font-mono">
+                          {getWarehouseName(item.warehouse_id)}
+                        </span>
                       </td>
-                      <td className="px-2 py-1.5 text-xs text-gray-600">
-                        {products.find(p => p.id == r.product_id)?.name || products.find(p => p.id == r.product_id)?.TenHH || '-'}
+                      <td className="px-3 py-2.5 text-right font-mono text-sm font-semibold">
+                        {fmtN(item.quantity)}
                       </td>
-                      <td className="px-2 py-1.5">
-                        <input type="number" min="0" value={r.quantity} onChange={e => upd(i, 'quantity', +e.target.value)}
-                          className="w-full px-2 py-1 border border-gray-300 rounded text-xs text-right focus:outline-none" />
+                      <td className="px-3 py-2.5 text-right font-mono text-sm">
+                        {fmtN(item.unit_price)}
                       </td>
-                      <td className="px-2 py-1.5">
-                        <input type="number" min="0" value={r.unit_price} onChange={e => upd(i, 'unit_price', +e.target.value)}
-                          className="w-full px-2 py-1 border border-gray-300 rounded text-xs text-right focus:outline-none" />
-                      </td>
-                      <td className="px-3 py-1.5 text-right font-mono text-xs font-semibold">{fmtN((+r.quantity) * (+r.unit_price))}</td>
-                      <td className="px-2 py-1.5">
-                        <button onClick={() => setRows(rs => rs.filter((_, ri) => ri !== i))} className="text-red-400 hover:text-red-600">✕</button>
+                      <td className="px-3 py-2.5 text-right font-mono text-sm font-bold text-blue-700">
+                        {fmtN(item.total||(+item.quantity * +item.unit_price))}
                       </td>
                     </tr>
                   ))}
                 </tbody>
-                <tfoot className="bg-gray-50 border-t-2 border-gray-200">
+                <tfoot className="bg-blue-50 border-t-2 border-blue-200">
                   <tr>
-                    <td colSpan={5} className="px-3 py-2 font-bold text-blue-700">Tổng Thanh Toán</td>
-                    <td className="px-3 py-2 text-right font-mono font-bold text-blue-700 text-base">{fmt(total)}</td>
-                    <td></td>
+                    <td colSpan={5} className="px-3 py-3 font-bold text-right text-sm text-blue-800">
+                      Tổng Thanh Toán:
+                    </td>
+                    <td className="px-3 py-3 text-right font-bold font-mono text-blue-700 text-base">
+                      {fmt(totalItems||detail.TongTien||detail.tong_tien||0)}
+                    </td>
                   </tr>
                 </tfoot>
               </table>
             </div>
-            <button onClick={() => setRows(r => [...r, { product_id: '', warehouse_id: '', quantity: 1, unit_price: 0 }])}
-              className="mt-2 px-3 py-1.5 bg-blue-50 text-blue-700 rounded text-xs font-semibold hover:bg-blue-100">
-              + Thêm Dòng
-            </button>
-          </CB>
-          <CF>
-            <Btn v="outline" onClick={() => setTab('list')}>Hủy</Btn>
-            <Btn v="success" onClick={save}>💾 Lưu & Đóng</Btn>
-          </CF>
-        </Card>
-      )}
-    </div>
+            :<div className="text-center py-8 text-gray-400 border border-dashed border-gray-200 rounded-lg">
+              <div className="text-3xl mb-2">📭</div>
+              <p className="text-sm">Không có dữ liệu hàng hóa</p>
+              <p className="text-xs text-gray-300 mt-1">
+                ID phiếu: {detail.id} — items: {JSON.stringify(detail.items)}
+              </p>
+            </div>
+          }
+
+          <div className="flex justify-end gap-2 mt-4">
+            <Btn v="outline" onClick={()=>{setDetailModal(false);setDetail(null)}}>Đóng</Btn>
+          </div>
+        </>
+      }
+    </Modal>
   )
+}
+
+  return(<div className="space-y-4">
+    {alert&&<Alert msg={alert.msg} type={alert.type} onClose={closeAlert}/>}
+    <PNKDetailModal/>
+
+    <Tabs tabs={[{id:'list',label:'📋 Danh Sách'},{id:'create',label:'+ Tạo Mới'}]}
+      active={tab}
+      onChange={t=>{
+        setTab(t)
+        if(t==='create'){setForm(makeEmptyForm(data));setRows(emptyRows())}
+      }}/>
+
+    {/* ── DANH SÁCH ── */}
+    {tab==='list'&&<Card>
+      <CH>
+        <h3 className="font-bold">📥 Danh Sách Phiếu Nhập Kho</h3>
+        <div className="ml-auto flex gap-2">
+          <Btn v="excel" size="sm" onClick={()=>exportExcel('PhieuNhapKho','Phiếu Nhập Kho',
+            ['Số Phiếu','Ngày','Loại','Tổng SL','Tổng Tiền','Trạng Thái'],
+            data.map(r=>[r.so_phieu_nhap,fmtDate(r.ngay_phieu_nhap),r.loai_phieu_nhap,r.tong_so_luong,r.tong_tien,r.trang_thai])
+          )}>⬇ Excel</Btn>
+        </div>
+      </CH>
+      <p className="px-4 py-1.5 text-xs text-blue-600 bg-blue-50 border-b border-blue-100">
+        💡 Click vào Số Phiếu để xem chi tiết
+      </p>
+      <Tbl data={data} loading={loading} empty="Chưa có phiếu nhập kho" cols={[
+        {k:'so_phieu_nhap',l:'Số Phiếu',w:'160px',fn:(v,r)=>(
+          <button onClick={()=>openDetail(r)}
+            className="text-blue-600 hover:underline font-mono text-xs font-semibold">
+            {v||'-'}
+          </button>
+        )},
+        {k:'ngay_phieu_nhap',l:'Ngày',w:'100px',fn:v=>fmtDate(v)},
+        {k:'loai_phieu_nhap',l:'Loại Phiếu',w:'150px',fn:(v,r)=>(
+          <Badge v="primary">{v||r.loai_phieu_nhap||'-'}</Badge>
+        )},
+        {k:'nha_cung_cap_id',l:'Nhà Cung Cấp',fn:v=>(
+          <span className="text-sm">{getNCCLabel(v)}</span>
+        )},
+        {k:'tong_so_luong',l:'Tổng SL',w:'80px',r:true,fn:v=>fmtN(v||0)},
+        {k:'tong_tien',l:'Tổng Tiền',w:'130px',r:true,
+          fn:v=><span className="font-semibold text-blue-700">{fmt(v||0)}</span>
+        },
+        {k:'trang_thai',l:'TT',w:'90px',
+          fn:v=><Badge v={v==='POSTED'?'success':'warning'}>{v||'DRAFT'}</Badge>
+        },
+      ]}/>
+    </Card>}
+
+    {/* ── TẠO MỚI ── */}
+    {tab==='create'&&<Card>
+      <CH><h3 className="font-bold">📥 Tạo Phiếu Nhập Kho</h3></CH>
+      <CB>
+        <div className="grid grid-cols-3 gap-3 mb-4">
+          <Inp label="Số Phiếu Nhập" req value={form.so_phieu_nhap}
+            onChange={sf('so_phieu_nhap')} hint="Tự sinh, có thể sửa"/>
+          <Inp label="Ngày Phiếu Nhập" req type="date" value={form.ngay_phieu_nhap}
+            onChange={sf('ngay_phieu_nhap')}/>
+          <Sel label="Loại Phiếu Nhập" value={form.loai_phieu_nhap}
+            onChange={sf('loai_phieu_nhap')}
+            options={[
+              {value:'Nhập từ NCC',label:'Nhập từ NCC'},
+              {value:'Nhập thành phẩm',label:'Nhập thành phẩm'},
+              {value:'Nhập kho mua hàng',label:'Nhập kho mua hàng'},
+              {value:'Nhập khác',label:'Nhập khác'},
+            ]}/>
+          <div className="col-span-2">
+            <Sel label="Nhà Cung Cấp" value={form.nha_cung_cap_id}
+              onChange={sf('nha_cung_cap_id')}
+              options={suppliers.map(s=>({value:s.id,label:`${s.TenNCC||s.name} (${s.MaNCC||s.code})`}))}/>
+          </div>
+          <Inp label="Người Giao Dịch" value={form.nguoi_giao_dich}
+            onChange={sf('nguoi_giao_dich')}/>
+          <div className="col-span-3">
+            <Inp label="Diễn Giải" value={form.dien_giai} onChange={sf('dien_giai')}/>
+          </div>
+        </div>
+
+        <p className="text-xs font-bold text-gray-600 mb-2">Chi Tiết Hàng Nhập:</p>
+        <div className="border border-gray-200 rounded-lg overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-blue-50">
+              <tr>
+                <th className="px-3 py-2 text-left text-xs font-bold text-blue-700">Kho Nhập</th>
+                <th className="px-3 py-2 text-left text-xs font-bold text-blue-700">Mã Hàng</th>
+                <th className="px-3 py-2 text-left text-xs font-bold text-blue-700">Tên Hàng</th>
+                <th className="px-3 py-2 text-right text-xs font-bold text-blue-700 w-24">SL</th>
+                <th className="px-3 py-2 text-right text-xs font-bold text-blue-700 w-32">Đơn Giá</th>
+                <th className="px-3 py-2 text-right text-xs font-bold text-blue-700 w-32">Thành Tiền</th>
+                <th className="w-8"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {rows.map((r,i)=>(
+                <tr key={i}>
+                  <td className="px-2 py-1.5">
+                    <select value={r.warehouse_id||''} onChange={e=>upd(i,'warehouse_id',e.target.value)}
+                      className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none">
+                      <option value="">--</option>
+                      {warehouses.map(w=><option key={w.id} value={w.id}>{w.MaKho||w.code}</option>)}
+                    </select>
+                  </td>
+                  <td className="px-2 py-1.5">
+                    <select value={r.product_id||''} onChange={e=>{
+                      const p=products.find(x=>x.id==e.target.value)
+                      upd(i,'product_id',e.target.value)
+                      if(p) upd(i,'unit_price',p.GiaBan||p.unit_price||0)
+                    }} className="w-28 px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none">
+                      <option value="">--</option>
+                      {products.map(p=><option key={p.id} value={p.id}>{p.MaHH||p.code}</option>)}
+                    </select>
+                  </td>
+                  <td className="px-2 py-1.5 text-xs text-gray-600">
+                    {products.find(p=>String(p.id)===String(r.product_id))?.TenHH||
+                     products.find(p=>String(p.id)===String(r.product_id))?.name||'-'}
+                  </td>
+                  <td className="px-2 py-1.5">
+                    <input type="number" min="0" value={r.quantity}
+                      onChange={e=>upd(i,'quantity',+e.target.value)}
+                      className="w-full px-2 py-1 border border-gray-300 rounded text-xs text-right focus:outline-none"/>
+                  </td>
+                  <td className="px-2 py-1.5">
+                    <input type="number" min="0" value={r.unit_price}
+                      onChange={e=>upd(i,'unit_price',+e.target.value)}
+                      className="w-full px-2 py-1 border border-gray-300 rounded text-xs text-right focus:outline-none"/>
+                  </td>
+                  <td className="px-3 py-1.5 text-right font-mono text-xs font-semibold text-blue-700">
+                    {fmtN((+r.quantity)*(+r.unit_price))}
+                  </td>
+                  <td className="px-2 py-1.5">
+                    <button onClick={()=>setRows(rs=>rs.filter((_,ri)=>ri!==i))}
+                      className="text-red-400 hover:text-red-600 text-base">✕</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot className="bg-gray-50 border-t-2 border-gray-200">
+              <tr>
+                <td colSpan={5} className="px-3 py-2 font-bold text-blue-700">Tổng Thanh Toán</td>
+                <td className="px-3 py-2 text-right font-mono font-bold text-blue-700 text-base">
+                  {fmt(total)}
+                </td>
+                <td></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        <button onClick={()=>setRows(r=>[...r,{product_id:'',warehouse_id:'',quantity:1,unit_price:0}])}
+          className="mt-2 px-3 py-1.5 bg-blue-50 text-blue-700 rounded text-xs font-semibold hover:bg-blue-100">
+          + Thêm Dòng
+        </button>
+      </CB>
+      <CF>
+        <Btn v="outline" onClick={()=>{
+          setTab('list')
+          setForm(makeEmptyForm(data))
+          setRows(emptyRows())
+        }}>Hủy</Btn>
+        <Btn v="success" onClick={save}>💾 Lưu & Đóng</Btn>
+      </CF>
+    </Card>}
+  </div>)
 }
 
 // ══ PHIẾU XUẤT KHO - có form tạo + Excel

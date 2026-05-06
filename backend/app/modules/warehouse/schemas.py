@@ -122,3 +122,12 @@ class StockSummaryResponse(BaseModel):
     xuat_trong_ky_gia_tri: float
     ton_cuoi_ky_sl: int
     ton_cuoi_ky_gia_tri: float
+class PhieuNhapKhoResponse(BaseModel):
+    id: int
+    so_phieu_nhap: str
+    ngay_phieu_nhap: date
+    nha_cung_cap_id: Optional[int] = None
+    loai_phieu_nhap: Optional[str] = None   # ← THÊM DÒNG NÀY
+    tong_so_luong: int
+    tong_tien: float
+    trang_thai: str
