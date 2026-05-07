@@ -2818,6 +2818,10 @@ const BankTxn=({type})=>{
   const [detail,setDetail]=useState(null)
   const [detailModal,setDetailModal]=useState(false)
   const [detailLoading,setDetailLoading]=useState(false)
+  const [editModal,setEditModal]=useState(false)
+  const [editForm,setEditForm]=useState(null)
+  const [editLoading,setEditLoading]=useState(false)
+  const sef=k=>e=>setEditForm(f=>({...f,[k]:e.target.value}))
   const {options:kyOptions,defaultKy:kyDefault}=useKyKeToan()
 
   const prefix=isTTG?'TTG':'CTG'
@@ -2860,26 +2864,67 @@ const BankTxn=({type})=>{
     if(!loading) setForm(f=>({...f,so_chung_tu:makeNewSoCT(data),period_id:kyDefault||f.period_id}))
   },[data,loading])
 
-  const openDetail=(row)=>{
-    setDetail({
-      SoCT: row.so_chung_tu,
-      NgayCT: row.ngay_chung_tu,
-      loai_giao_dich: row.loai_giao_dich,
-      so_tien_thu: isTTG ? row.so_tien_thu : undefined,
-      so_tien_chi: !isTTG ? row.so_tien_chi : undefined,
-      TienThu: isTTG ? row.so_tien_thu : undefined,
-      TienChi: !isTTG ? row.so_tien_chi : undefined,
-      LoaiGiaoDich: row.loai_giao_dich,
-      DienGiai: row.noi_dung,
-      ten_tk: row.ten_tk||getTKLabel(row.tk_id),
-      tk_id: row.tk_id,
-      TrangThai: row.trang_thai,
-      da_doi_chieu: row.da_doi_chieu,
-      items:[]
+  const openDetail=async(row)=>{
+    setDetailModal(true); setDetailLoading(true); setDetail(null)
+    const r=await api('GET',isTTG?`/banking/ttg/${row.id}`:`/banking/ctg/${row.id}`)
+    setDetail(r&&!r.__error?{...r,
+      id:row.id, SoCT:r.so_chung_tu, NgayCT:r.ngay_chung_tu,
+      TienThu:isTTG?r.so_tien_thu:undefined,
+      TienChi:!isTTG?r.so_tien_chi:undefined,
+      LoaiGiaoDich:r.loai_giao_dich, DienGiai:r.noi_dung,
+      ten_tk:r.ten_tk||getTKLabel(r.tk_id),
+        khach_hang_id:r.khach_hang_id,
+        supplier_id:r.supplier_id,
+        items:[]
+    }:{...row, id:row.id, SoCT:row.so_chung_tu, NgayCT:row.ngay_chung_tu,
+      TienThu:isTTG?row.so_tien_thu:undefined,
+      TienChi:!isTTG?row.so_tien_chi:undefined,
+      LoaiGiaoDich:row.loai_giao_dich, DienGiai:row.noi_dung,
+      ten_tk:row.ten_tk||getTKLabel(row.tk_id), items:[]
     })
-    setDetailModal(true)
+    setDetailLoading(false)
+  }
+const isBC=type==='nv-bc'
+  const isBN=type==='nv-bn'
+
+  const openEdit=(d)=>{
+    setEditForm({
+      SoCT: d.so_chung_tu||'',
+      ngay_chung_tu: String(d.ngay_chung_tu||today()).slice(0,10),
+      period_id: d.period_id||kyDefault,
+      tk_id: d.tk_id||'',
+      loai_giao_dich: d.loai_giao_dich||'',
+      so_tien_thu: d.so_tien_thu||0,
+      so_tien_chi: d.so_tien_chi||0,
+      noi_dung: d.noi_dung||'',
+      khach_hang_id: d.khach_hang_id||'',
+      supplier_id: d.supplier_id||''
+    })
+    setEditModal(true)
+  }
+  const saveEdit=async()=>{
+    if(!editForm.tk_id){showAlert('Vui lòng chọn Tài Khoản!','danger');return}
+    const soTien=isTTG?+editForm.so_tien_thu:+editForm.so_tien_chi
+    if(!soTien||soTien<=0){showAlert('Vui lòng nhập Số Tiền lớn hơn 0!','danger');return}
+    setEditLoading(true)
+    const body={
+      so_chung_tu: editForm.SoCT,
+      ngay_chung_tu: editForm.ngay_chung_tu,
+      tk_id: +editForm.tk_id,
+      loai_giao_dich: editForm.loai_giao_dich,
+      noi_dung: editForm.noi_dung,
+      period_id: +editForm.period_id,
+      ...(isTTG?{so_tien_thu:+editForm.so_tien_thu}:{so_tien_chi:+editForm.so_tien_chi})
+    }
+    const r=await api('PUT',isTTG?`/banking/ttg/${detail.id}`:`/banking/ctg/${detail.id}`,body)
+    setEditLoading(false)
+    if(r&&!r.__error){
+      showAlert(`Cập nhật ${prefix} thành công!`)
+      setEditModal(false); setDetailModal(false); setDetail(null); load()
+    } else showAlert('Lỗi: '+(r?.message||'Cập nhật thất bại'),'danger')
   }
 
+  
   const getTKLabel=(id)=>{
     const a=accounts.find(x=>String(x.id)===String(id))
     return a?`${a.ten_tk} (${a.ma_tk})`:(id?`TK #${id}`:'-')
@@ -2899,13 +2944,49 @@ const BankTxn=({type})=>{
       load(); setTab('list')
     } else showAlert('Lỗi: '+(r?.message||'Tạo thất bại'),'danger')
   }
+  
 
   return(<div className="space-y-4">
     {alert&&<Alert msg={alert.msg} type={alert.type} onClose={closeAlert}/>}
 
     <DetailModal open={detailModal} onClose={()=>{setDetailModal(false);setDetail(null)}}
       title={`🏦 Chi Tiết ${isTTG?'Thu Tiền Gửi':'Chi Tiền Gửi'} - ${detail?.SoCT||''}`}
-      detail={detail} loading={detailLoading} products={[]} customers={customers} suppliers={suppliers}/>
+      detail={detail} loading={detailLoading} products={[]} customers={customers} suppliers={suppliers}
+      onEdit={()=>openEdit(detail)}/>
+
+    {editModal&&editForm&&<Modal open={editModal} onClose={()=>setEditModal(false)}
+      title={`✏️ Sửa ${isTTG?'TTG':'CTG'} - ${editForm.SoCT||editForm.so_chung_tu||''}`} size="lg">
+      <div className="grid grid-cols-3 gap-3">
+        <Inp label="Số CT" value={editForm.SoCT} disabled hint="Không thể sửa số CT"
+          className="bg-gray-100 cursor-not-allowed opacity-75"/>
+        <Inp label="Ngày CT" req type="date" value={editForm.ngay_chung_tu} onChange={sef('ngay_chung_tu')}/>
+        <Sel label="Kỳ Kế Toán" req value={editForm.period_id} onChange={sef('period_id')} options={kyOptions}/>
+        <Sel label="Tài Khoản NH" req value={editForm.tk_id} onChange={sef('tk_id')}
+          options={accounts.map(a=>({value:a.id,label:`${a.ma_tk} - ${a.ten_tk}`}))}/>
+        <Sel label="Loại Giao Dịch" value={editForm.loai_giao_dich} onChange={sef('loai_giao_dich')}
+          options={ltypes.map(t=>({value:t.value||t.name||t,label:t.label||t.name||t}))}/>
+        {isTTG
+          ?<Sel label="Khách Hàng" value={editForm.khach_hang_id||''} onChange={sef('khach_hang_id')}
+              options={[{value:'',label:'-- Không có --'},...customers.map(c=>({value:c.id,label:`${c.TenKH||c.name} (${c.MaKH||c.code})`}))]}/>
+          :<Sel label="Nhà Cung Cấp" value={editForm.supplier_id||''} onChange={sef('supplier_id')}
+              options={[{value:'',label:'-- Không có --'},...suppliers.map(s=>({value:s.id,label:`${s.TenNCC||s.name} (${s.MaNCC||s.code})`}))]}/>
+        }
+        <div className="col-span-2">
+          <Inp label={isTTG?'Số Tiền Thu':'Số Tiền Chi'} req type="number" min="0"
+            value={isTTG?editForm.so_tien_thu:editForm.so_tien_chi}
+            onChange={sef(isTTG?'so_tien_thu':'so_tien_chi')}/>
+        </div>
+        <div className="col-span-3">
+          <Inp label="Nội Dung" value={editForm.noi_dung} onChange={sef('noi_dung')}/>
+        </div>
+      </div>
+      <div className="flex justify-end gap-2 mt-4">
+        <Btn v="outline" onClick={()=>setEditModal(false)}>Hủy</Btn>
+        <Btn v={isTTG?'success':'success'} onClick={saveEdit} disabled={editLoading}>
+          {editLoading?'Đang lưu...':'💾 Lưu Thay Đổi'}
+        </Btn>
+      </div>
+    </Modal>}
 
     <Tabs tabs={[
       {id:'list',label:`📋 Danh Sách ${prefix}`},
@@ -2937,6 +3018,16 @@ const BankTxn=({type})=>{
           <button onClick={()=>openDetail(r)} className="text-blue-600 hover:underline font-mono text-xs font-semibold">{v||'-'}</button>
         )},
         {k:'ngay_chung_tu',l:'Ngày',w:'100px',fn:v=>fmtDate(v)},
+        {k:isTTG?'khach_hang_id':'supplier_id',l:isTTG?'Khách Hàng':'Nhà CC',w:'160px',fn:(v)=>{
+          if(!v) return <span className="text-gray-400">-</span>
+          if(isTTG){
+            const c=customers.find(x=>String(x.id)===String(v))
+            return <span className="text-xs font-medium">{c?`${c.TenKH||c.name}`:'-'}</span>
+          } else {
+            const s=suppliers.find(x=>String(x.id)===String(v))
+            return <span className="text-xs font-medium">{s?`${s.TenNCC||s.name}`:'-'}</span>
+          }
+        }},
         {k:'tk_id',l:'Tài Khoản',w:'180px',fn:v=><span className="text-xs">{getTKLabel(v)}</span>},
         {k:'loai_giao_dich',l:'Loại GD',fn:(v)=><Badge v="success">{v||'-'}</Badge>},
         {k:isTTG?'so_tien_thu':'so_tien_chi',l:'Số Tiền',r:true,
@@ -3496,6 +3587,18 @@ const DetailModal=({open,onClose,title,detail,loading,products=[],customers=[],s
               <div className="flex gap-2">
                 <span className="text-gray-500 w-28 flex-shrink-0">Số Tiền Thu:</span>
                 <strong className="text-green-700 font-mono">{fmt(detail.TienThu)}</strong>
+              </div>
+            )}
+            {detail.khach_hang_id&&(
+              <div className="flex gap-2">
+                <span className="text-gray-500 w-28 flex-shrink-0">Khách Hàng:</span>
+                <strong>{(customers||[]).find(x=>String(x.id)===String(detail.khach_hang_id))?.TenKH||`KH #${detail.khach_hang_id}`}</strong>
+              </div>
+            )}
+            {detail.supplier_id&&(
+              <div className="flex gap-2">
+                <span className="text-gray-500 w-28 flex-shrink-0">Nhà CC:</span>
+                <strong>{(suppliers||[]).find(x=>String(x.id)===String(detail.supplier_id))?.TenNCC||`NCC #${detail.supplier_id}`}</strong>
               </div>
             )}
             {detail.TienChi!==undefined&&(

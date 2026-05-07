@@ -266,7 +266,9 @@ def get_bao_co(db: Session = Depends(get_db)):
             id=b.id,
             SoCT=d.document_number,
             NgayCT=d.document_date,
+            MaKH=b.customer_id,
             SoTien=float(b.amount),
+            DienGiai=b.notes,
             TrangThai=d.status
         ) for b, d in rows
     ]
@@ -295,6 +297,22 @@ def get_bao_co_detail(doc_id: int, db: Session = Depends(get_db)):
         "TrangThai": d.status or "DRAFT",
         "items": []
     }
+@router.put("/documents/bao-co/{doc_id}")
+def update_bao_co(doc_id: int, data: BaoCoCreate, db: Session = Depends(get_db)):
+    b, d = db.query(BankStatement, Document).join(
+        Document, BankStatement.document_id == Document.id
+    ).filter(BankStatement.id == doc_id, BankStatement.statement_type=="BC").first() or (None, None)
+    if not b:
+        raise HTTPException(404, "Không tìm thấy")
+    d.document_date = data.NgayCT
+    d.period_id = data.MaKyKeToan
+    d.total_amount = data.SoTien
+    d.description = data.DienGiai
+    b.customer_id = data.MaKH
+    b.amount = data.SoTien
+    b.notes = data.DienGiai
+    db.commit()
+    return {"message": "Cập nhật thành công", "id": doc_id}
 # ============ BÁO NỢ ============
 @router.post("/documents/bao-no", response_model=BaoNoResponse, status_code=201)
 def create_bao_no(data: BaoNoCreate, db: Session = Depends(get_db)):
@@ -342,7 +360,9 @@ def get_bao_no(db: Session = Depends(get_db)):
             id=b.id,
             SoCT=d.document_number,
             NgayCT=d.document_date,
+            MaNCC=b.customer_id,
             SoTien=float(b.amount),
+            DienGiai=b.notes,
             TrangThai=d.status
         ) for b, d in rows
     ]
@@ -371,6 +391,22 @@ def get_bao_no_detail(doc_id: int, db: Session = Depends(get_db)):
         "TrangThai": d.status or "DRAFT",
         "items": []
     }
+@router.put("/documents/bao-no/{doc_id}")
+def update_bao_no(doc_id: int, data: BaoNoCreate, db: Session = Depends(get_db)):
+    b, d = db.query(BankStatement, Document).join(
+        Document, BankStatement.document_id == Document.id
+    ).filter(BankStatement.id == doc_id, BankStatement.statement_type=="BN").first() or (None, None)
+    if not b:
+        raise HTTPException(404, "Không tìm thấy")
+    d.document_date = data.NgayCT
+    d.period_id = data.MaKyKeToan
+    d.total_amount = data.SoTien
+    d.description = data.DienGiai
+    b.customer_id = data.MaNCC
+    b.amount = data.SoTien
+    b.notes = data.DienGiai
+    db.commit()
+    return {"message": "Cập nhật thành công", "id": doc_id}
 # ============ PHIẾU NHẬP MUA ============
 
 @router.post("/documents/phieu-nhap-mua", response_model=PhieuNhapMuaResponse, status_code=201)

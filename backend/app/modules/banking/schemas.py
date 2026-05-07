@@ -53,9 +53,11 @@ class BankReceiptTransactionResponse(BaseModel):
     noi_dung: Optional[str] = None
     da_doi_chieu: bool
     trang_thai: str
-    tk_id: Optional[int] = None        # ✅ THÊM
-    ten_tk: Optional[str] = None       # ✅ THÊM
-    ma_tk: Optional[str] = None        # ✅ THÊM
+    tk_id: Optional[int] = None
+    ten_tk: Optional[str] = None
+    ma_tk: Optional[str] = None
+    period_id: Optional[int] = None     # ✅ THÊM
+    khach_hang_id: Optional[int] = None    # ✅ THÊM
 
 
 class BankPaymentTransactionCreate(BaseModel):
@@ -73,6 +75,7 @@ class BankPaymentTransactionCreate(BaseModel):
     ma_phi: Optional[str] = None
     phieu_chi_id: Optional[int] = None
     period_id: int
+    supplier_id: Optional[int] = None      # ✅ THÊM
 
 # TÌM class BankPaymentTransactionResponse và THAY TOÀN BỘ:
 class BankPaymentTransactionResponse(BaseModel):
@@ -85,9 +88,11 @@ class BankPaymentTransactionResponse(BaseModel):
     ma_phi: Optional[str] = None
     da_doi_chieu: bool
     trang_thai: str
-    tk_id: Optional[int] = None        # ✅ THÊM
-    ten_tk: Optional[str] = None       # ✅ THÊM
-    ma_tk: Optional[str] = None        # ✅ THÊM
+    tk_id: Optional[int] = None
+    ten_tk: Optional[str] = None
+    ma_tk: Optional[str] = None
+    period_id: Optional[int] = None     # ✅ THÊM
+    supplier_id: Optional[int] = None 
 
 
 class BankBalanceReportRow(BaseModel):

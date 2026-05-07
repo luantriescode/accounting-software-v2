@@ -66,7 +66,9 @@ class BaoCoResponse(BaseModel):
     id: int
     SoCT: str
     NgayCT: date
+    MaKH: Optional[int] = None
     SoTien: float
+    DienGiai: Optional[str] = None
     TrangThai: str = "DRAFT"
 
 
@@ -83,7 +85,9 @@ class BaoNoResponse(BaseModel):
     id: int
     SoCT: str
     NgayCT: date
+    MaNCC: Optional[int] = None
     SoTien: float
+    DienGiai: Optional[str] = None
     TrangThai: str = "DRAFT"
 
 

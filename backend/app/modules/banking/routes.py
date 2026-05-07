@@ -167,6 +167,19 @@ def create_ttg(data: BankReceiptTransactionCreate, db: Session = Depends(get_db)
         da_doi_chieu=ttg.da_doi_chieu,
         trang_thai=ttg.trang_thai
     )
+@router.put("/banking/ttg/{id}")
+def update_ttg(id: int, data: BankReceiptTransactionCreate, db: Session = Depends(get_db)):
+    t = db.query(BankReceiptTransaction).filter(BankReceiptTransaction.id == id).first()
+    if not t:
+        raise HTTPException(404, "TTG không tìm thấy")
+    t.tk_id = data.tk_id
+    t.loai_giao_dich = data.loai_giao_dich
+    t.ngay_chung_tu = data.ngay_chung_tu
+    t.so_tien_thu = data.so_tien_thu
+    t.noi_dung = data.noi_dung
+    t.period_id = data.period_id
+    db.commit()
+    return {"message": "Cập nhật thành công", "id": id}
 
 @router.post("/banking/accounts", summary="Thêm tài khoản quỹ/ngân hàng", status_code=201)
 def create_bank_account(data: BankAccountCreate, db: Session = Depends(get_db)):
@@ -218,13 +231,18 @@ def get_ttg(period_id: int = Query(None), tk_id: int = Query(None), db: Session 
     acc_map = {a.id: a for a in db.query(BankAccount).filter(BankAccount.id.in_(acc_ids)).all()} if acc_ids else {}
 
     return [BankReceiptTransactionResponse(
-        id=t.id, so_chung_tu=t.so_chung_tu, ngay_chung_tu=t.ngay_chung_tu,
-        loai_giao_dich=t.loai_giao_dich, so_tien_thu=float(t.so_tien_thu),
-        noi_dung=t.noi_dung, da_doi_chieu=t.da_doi_chieu, trang_thai=t.trang_thai,
-        tk_id=t.tk_id,
-        ten_tk=acc_map[t.tk_id].ten_tk if t.tk_id in acc_map else None,
-        ma_tk=acc_map[t.tk_id].ma_tk if t.tk_id in acc_map else None,
-    ) for t in ttgs]
+            id=t.id,
+            so_chung_tu=t.so_chung_tu,
+            ngay_chung_tu=t.ngay_chung_tu,
+            loai_giao_dich=t.loai_giao_dich,
+            so_tien_thu=float(t.so_tien_thu),
+            noi_dung=t.noi_dung,
+            da_doi_chieu=t.da_doi_chieu,
+            trang_thai=t.trang_thai,
+            tk_id=t.tk_id,
+            period_id=t.period_id,
+            khach_hang_id=t.khach_hang_id,   # ✅ THÊM
+        ) for t in ttgs]
 
 @router.get("/banking/ttg/{id}", response_model=BankReceiptTransactionResponse)
 def get_ttg_detail(id: int, db: Session = Depends(get_db)):
@@ -241,7 +259,10 @@ def get_ttg_detail(id: int, db: Session = Depends(get_db)):
         so_tien_thu=float(ttg.so_tien_thu),
         noi_dung=ttg.noi_dung,
         da_doi_chieu=ttg.da_doi_chieu,
-        trang_thai=ttg.trang_thai
+        trang_thai=ttg.trang_thai,
+        tk_id=ttg.tk_id,                # đã có
+        period_id=ttg.period_id,         # ✅ THÊM
+        khach_hang_id=ttg.khach_hang_id  # ✅ THÊM
     )
 
 
@@ -331,13 +352,19 @@ def get_ctg(period_id: int = Query(None), tk_id: int = Query(None), db: Session 
     acc_map = {a.id: a for a in db.query(BankAccount).filter(BankAccount.id.in_(acc_ids)).all()} if acc_ids else {}
 
     return [BankPaymentTransactionResponse(
-        id=c.id, so_chung_tu=c.so_chung_tu, ngay_chung_tu=c.ngay_chung_tu,
-        loai_giao_dich=c.loai_giao_dich, so_tien_chi=float(c.so_tien_chi),
-        noi_dung=c.noi_dung, ma_phi=c.ma_phi, da_doi_chieu=c.da_doi_chieu, trang_thai=c.trang_thai,
-        tk_id=c.tk_id,
-        ten_tk=acc_map[c.tk_id].ten_tk if c.tk_id in acc_map else None,
-        ma_tk=acc_map[c.tk_id].ma_tk if c.tk_id in acc_map else None,
-    ) for c in ctgs]
+            id=c.id,
+            so_chung_tu=c.so_chung_tu,
+            ngay_chung_tu=c.ngay_chung_tu,
+            loai_giao_dich=c.loai_giao_dich,
+            so_tien_chi=float(c.so_tien_chi),
+            noi_dung=c.noi_dung,
+            ma_phi=c.ma_phi,
+            da_doi_chieu=c.da_doi_chieu,
+            trang_thai=c.trang_thai,
+            tk_id=c.tk_id,
+            period_id=c.period_id,
+            supplier_id=c.supplier_id,        # ✅ THÊM
+        ) for c in ctgs]
 
 @router.get("/banking/ctg/{id}", response_model=BankPaymentTransactionResponse)
 def get_ctg_detail(id: int, db: Session = Depends(get_db)):
@@ -355,9 +382,24 @@ def get_ctg_detail(id: int, db: Session = Depends(get_db)):
         noi_dung=ctg.noi_dung,
         ma_phi=ctg.ma_phi,
         da_doi_chieu=ctg.da_doi_chieu,
-        trang_thai=ctg.trang_thai
+        trang_thai=ctg.trang_thai,
+        tk_id=ctg.tk_id,                # đã có
+        period_id=ctg.period_id,         # ✅ THÊM
+        supplier_id=ctg.supplier_id        # ✅ THÊM
     )
-
+@router.put("/banking/ctg/{id}")
+def update_ctg(id: int, data: BankPaymentTransactionCreate, db: Session = Depends(get_db)):
+    t = db.query(BankPaymentTransaction).filter(BankPaymentTransaction.id == id).first()
+    if not t:
+        raise HTTPException(404, "CTG không tìm thấy")
+    t.tk_id = data.tk_id
+    t.loai_giao_dich = data.loai_giao_dich
+    t.ngay_chung_tu = data.ngay_chung_tu
+    t.so_tien_chi = data.so_tien_chi
+    t.noi_dung = data.noi_dung
+    t.period_id = data.period_id
+    db.commit()
+    return {"message": "Cập nhật thành công", "id": id}
 
 # ============ BÁO CÁO SỐ DƯ TK ============
 @router.get("/banking/bao-cao-so-du", response_model=BankBalanceReport)
