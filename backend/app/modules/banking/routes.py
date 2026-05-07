@@ -205,26 +205,26 @@ def delete_bank_account(id: int, db: Session = Depends(get_db)):
 
 @router.get("/banking/ttg", response_model=list[BankReceiptTransactionResponse])
 def get_ttg(period_id: int = Query(None), tk_id: int = Query(None), db: Session = Depends(get_db)):
-    """Lấy danh sách TTG"""
     filters = []
     if period_id:
         filters.append(BankReceiptTransaction.period_id == period_id)
     if tk_id:
         filters.append(BankReceiptTransaction.tk_id == tk_id)
-    
+
     ttgs = db.query(BankReceiptTransaction).filter(*filters).all()
-    return [
-        BankReceiptTransactionResponse(
-            id=t.id,
-            so_chung_tu=t.so_chung_tu,
-            ngay_chung_tu=t.ngay_chung_tu,
-            loai_giao_dich=t.loai_giao_dich,
-            so_tien_thu=float(t.so_tien_thu),
-            noi_dung=t.noi_dung,
-            da_doi_chieu=t.da_doi_chieu,
-            trang_thai=t.trang_thai
-        ) for t in ttgs
-    ]
+
+    # ✅ Load accounts 1 lần tránh N+1
+    acc_ids = list({t.tk_id for t in ttgs if t.tk_id})
+    acc_map = {a.id: a for a in db.query(BankAccount).filter(BankAccount.id.in_(acc_ids)).all()} if acc_ids else {}
+
+    return [BankReceiptTransactionResponse(
+        id=t.id, so_chung_tu=t.so_chung_tu, ngay_chung_tu=t.ngay_chung_tu,
+        loai_giao_dich=t.loai_giao_dich, so_tien_thu=float(t.so_tien_thu),
+        noi_dung=t.noi_dung, da_doi_chieu=t.da_doi_chieu, trang_thai=t.trang_thai,
+        tk_id=t.tk_id,
+        ten_tk=acc_map[t.tk_id].ten_tk if t.tk_id in acc_map else None,
+        ma_tk=acc_map[t.tk_id].ma_tk if t.tk_id in acc_map else None,
+    ) for t in ttgs]
 
 @router.get("/banking/ttg/{id}", response_model=BankReceiptTransactionResponse)
 def get_ttg_detail(id: int, db: Session = Depends(get_db)):
@@ -318,27 +318,26 @@ def create_ctg(data: BankPaymentTransactionCreate, db: Session = Depends(get_db)
 
 @router.get("/banking/ctg", response_model=list[BankPaymentTransactionResponse])
 def get_ctg(period_id: int = Query(None), tk_id: int = Query(None), db: Session = Depends(get_db)):
-    """Lấy danh sách CTG"""
     filters = []
     if period_id:
         filters.append(BankPaymentTransaction.period_id == period_id)
     if tk_id:
         filters.append(BankPaymentTransaction.tk_id == tk_id)
-    
+
     ctgs = db.query(BankPaymentTransaction).filter(*filters).all()
-    return [
-        BankPaymentTransactionResponse(
-            id=c.id,
-            so_chung_tu=c.so_chung_tu,
-            ngay_chung_tu=c.ngay_chung_tu,
-            loai_giao_dich=c.loai_giao_dich,
-            so_tien_chi=float(c.so_tien_chi),
-            noi_dung=c.noi_dung,
-            ma_phi=c.ma_phi,
-            da_doi_chieu=c.da_doi_chieu,
-            trang_thai=c.trang_thai
-        ) for c in ctgs
-    ]
+
+    # ✅ Load accounts 1 lần tránh N+1
+    acc_ids = list({c.tk_id for c in ctgs if c.tk_id})
+    acc_map = {a.id: a for a in db.query(BankAccount).filter(BankAccount.id.in_(acc_ids)).all()} if acc_ids else {}
+
+    return [BankPaymentTransactionResponse(
+        id=c.id, so_chung_tu=c.so_chung_tu, ngay_chung_tu=c.ngay_chung_tu,
+        loai_giao_dich=c.loai_giao_dich, so_tien_chi=float(c.so_tien_chi),
+        noi_dung=c.noi_dung, ma_phi=c.ma_phi, da_doi_chieu=c.da_doi_chieu, trang_thai=c.trang_thai,
+        tk_id=c.tk_id,
+        ten_tk=acc_map[c.tk_id].ten_tk if c.tk_id in acc_map else None,
+        ma_tk=acc_map[c.tk_id].ma_tk if c.tk_id in acc_map else None,
+    ) for c in ctgs]
 
 @router.get("/banking/ctg/{id}", response_model=BankPaymentTransactionResponse)
 def get_ctg_detail(id: int, db: Session = Depends(get_db)):

@@ -91,19 +91,22 @@ class WarehouseIssueItemResponse(BaseModel):
 class PhieuXuatKhoCreate(BaseModel):
     so_phieu_xuat: str
     ngay_phieu_xuat: date
+    loai_phieu_xuat: Optional[str] = None
     khach_hang_id: Optional[int] = None
-    ky_ke_toan_id: int
+    ten_khach_le: Optional[str] = None          # ✅ THÊM
     dia_chi: Optional[str] = None
     nguoi_giao_dich: Optional[str] = None
     dien_giai: Optional[str] = None
     items: list[WarehouseIssueItemCreate]
-
+    ky_ke_toan_id: int
 class PhieuXuatKhoResponse(BaseModel):
     id: int
     so_phieu_xuat: str
     ngay_phieu_xuat: date
-    loai_phieu_xuat: Optional[str] = None   # ← thêm
-    khach_hang_id: Optional[int] = None     # ← thêm
+    loai_phieu_xuat: Optional[str] = None
+    khach_hang_id: Optional[int] = None
+    ten_khach_le: Optional[str] = None          # ✅ THÊM
+    nguoi_giao_dich: Optional[str] = None       # ✅ THÊM
     tong_so_luong: int
     tong_tien: float
     trang_thai: str

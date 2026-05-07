@@ -178,10 +178,11 @@ def create_phieu_xuat_kho(data: PhieuXuatKhoCreate, db: Session = Depends(get_db
     
     # Tạo phiếu xuất kho
     pxk = WarehouseIssue(
-        loai_phieu_xuat="Xuất bán",
+        loai_phieu_xuat=data.loai_phieu_xuat or "Xuất bán",
         so_phieu_xuat=data.so_phieu_xuat,
         ngay_phieu_xuat=data.ngay_phieu_xuat,
         khach_hang_id=data.khach_hang_id,
+        ten_khach_le=data.ten_khach_le,             # ✅ THÊM
         dia_chi=data.dia_chi,
         nguoi_giao_dich=data.nguoi_giao_dich,
         dien_giai=data.dien_giai,
@@ -228,6 +229,8 @@ def get_phieu_xuat_kho(db: Session = Depends(get_db)):
             ngay_phieu_xuat=p.ngay_phieu_xuat,
             loai_phieu_xuat=p.loai_phieu_xuat or "",
             khach_hang_id=p.khach_hang_id,
+            ten_khach_le=p.ten_khach_le or "",      # ✅ THÊM
+            nguoi_giao_dich=p.nguoi_giao_dich or "", # ✅ THÊM
             tong_so_luong=p.tong_so_luong,
             tong_tien=float(p.tong_tien or 0),
             trang_thai=p.trang_thai or "DRAFT"
