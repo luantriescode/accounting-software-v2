@@ -80,12 +80,16 @@ def get_employee(id: int, db: Session = Depends(get_db)):
 # ============ CHỨNG TỪ LƯƠNG ============
 @router.post("/payroll", response_model=PayrollResponse, status_code=201)
 def create_payroll(data: PayrollCreate, db: Session = Depends(get_db)):
+    # Kiểm tra trùng số CT
     if db.query(PayrollMaster).filter(
         PayrollMaster.so_chung_tu == data.so_chung_tu,
         PayrollMaster.period_id == data.ky_ke_toan_id
     ).first():
-        raise HTTPException(400, "Chứng từ lương đã tồn tại")
-    
+        raise HTTPException(400, f"Số CT '{data.so_chung_tu}' đã tồn tại trong kỳ này")
+
+    if not data.details:
+        raise HTTPException(400, "Danh sách nhân viên không được rỗng")
+
     # Tạo master
     payroll = PayrollMaster(
         so_chung_tu=data.so_chung_tu,
@@ -96,75 +100,74 @@ def create_payroll(data: PayrollCreate, db: Session = Depends(get_db)):
     )
     db.add(payroll)
     db.flush()
-    
-    # Get config
+
+    # Lấy config bảo hiểm
     config = db.query(PayrollConfig).first()
     if not config:
         config = PayrollConfig()
         db.add(config)
         db.flush()
-    
+
     tong_thu_nhap = 0
     tong_giam_tru = 0
-    
-    # Thêm chi tiết lương
+
     for detail_data in data.details:
-        emp = db.query(Employee).filter(Employee.id == detail_data.employee_id).first()
+        emp = db.query(Employee).filter(
+            Employee.id == detail_data.employee_id
+        ).first()
         if not emp:
-            raise HTTPException(404, f"Nhân viên {detail_data.employee_id} không tìm thấy")
-        
-        # Tính lương
+            raise HTTPException(404, f"Không tìm thấy nhân viên ID={detail_data.employee_id}")
+
+        # Tính tổng thu nhập
         tong_tien = (
-            detail_data.tien_luong_sp +
-            detail_data.luong_thoi_gian +
-            detail_data.tien_luong_nghi +
-            detail_data.pc_tu_quy_luong +
-            detail_data.phu_cap_khac +
-            detail_data.tien_thuong
+            float(detail_data.tien_luong_sp or 0) +
+            float(detail_data.luong_thoi_gian or 0) +
+            float(detail_data.tien_luong_nghi or 0) +
+            float(detail_data.pc_tu_quy_luong or 0) +
+            float(detail_data.phu_cap_khac or 0) +
+            float(detail_data.tien_thuong or 0)
         )
-        
-        # Tính khấu trừ (% lương cơ bản)
-        tru_bhxh = emp.luong_co_ban * float(config.ty_le_bhxh) / 100
-        tru_bhyt = emp.luong_co_ban * float(config.ty_le_bhyt) / 100
-        tru_bhtn = emp.luong_co_ban * float(config.ty_le_bhtn) / 100
-        tru_thue_tncn = 0  # Để sau
-        
-        tong_tru = tru_bhxh + tru_bhyt + tru_bhtn + tru_thue_tncn
+
+        # Tính khấu trừ theo lương cơ bản
+        luong_cb = float(emp.luong_co_ban or 0)
+        tru_bhxh = round(luong_cb * float(config.ty_le_bhxh or 8) / 100)
+        tru_bhyt = round(luong_cb * float(config.ty_le_bhyt or 1.5) / 100)
+        tru_bhtn = round(luong_cb * float(config.ty_le_bhtn or 1) / 100)
+        tong_tru = tru_bhxh + tru_bhyt + tru_bhtn
         thuc_lanh = tong_tien - tong_tru
-        
+
         detail = PayrollDetail(
             payroll_id=payroll.id,
             employee_id=detail_data.employee_id,
             he_so_luong=emp.he_so_luong,
-            so_luong_sp=detail_data.so_luong_sp,
-            tien_luong_sp=detail_data.tien_luong_sp,
-            so_cong=detail_data.so_cong,
-            luong_thoi_gian=detail_data.luong_thoi_gian,
-            cong_nghi_tinh_luong=detail_data.cong_nghi_tinh_luong,
-            tien_luong_nghi=detail_data.tien_luong_nghi,
-            pc_tu_quy_luong=detail_data.pc_tu_quy_luong,
-            phu_cap_khac=detail_data.phu_cap_khac,
-            tien_thuong=detail_data.tien_thuong,
+            so_luong_sp=detail_data.so_luong_sp or 0,
+            tien_luong_sp=detail_data.tien_luong_sp or 0,
+            so_cong=detail_data.so_cong or 0,
+            luong_thoi_gian=detail_data.luong_thoi_gian or 0,
+            cong_nghi_tinh_luong=detail_data.cong_nghi_tinh_luong or 0,
+            tien_luong_nghi=detail_data.tien_luong_nghi or 0,
+            pc_tu_quy_luong=detail_data.pc_tu_quy_luong or 0,
+            phu_cap_khac=detail_data.phu_cap_khac or 0,
+            tien_thuong=detail_data.tien_thuong or 0,
             tong_tien=tong_tien,
             tru_bhxh=tru_bhxh,
             tru_bhyt=tru_bhyt,
             tru_bhtn=tru_bhtn,
-            tru_thue_tncn=tru_thue_tncn,
+            tru_thue_tncn=0,
             tong_tru=tong_tru,
             thuc_lanh=thuc_lanh
         )
         db.add(detail)
         tong_thu_nhap += tong_tien
         tong_giam_tru += tong_tru
-    
-    # Cập nhật master
+
     payroll.tong_thu_nhap = tong_thu_nhap
     payroll.tong_giam_tru = tong_giam_tru
     payroll.tong_thuc_lanh = tong_thu_nhap - tong_giam_tru
-    
+
     db.commit()
     db.refresh(payroll)
-    
+
     return PayrollResponse(
         id=payroll.id,
         so_chung_tu=payroll.so_chung_tu,

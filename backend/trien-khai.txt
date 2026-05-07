@@ -22,33 +22,6 @@ hủy kick hoạt venv= deactivate
 pip install -r requirements.txt
 
 chạy backend= python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8002
+frontend: npm run dev -- --host 0.0.0.0
 cập nhật thư viện= pip install pydantic[email]
- đang lỗi tạo sql 
-    Failed to run sql query: ERROR:  23505: duplicate key value violates unique constraint "fiscal_periods_period_code_key"
-    DETAIL:  Key (period_code)=(2026-01) already exists.
-    lưu ý khi làm phiếu PHH: trong phần này có các button "phân bổ chi phí" là chọn chí phí đó để phần bổ theo từng phương thức ( dropdown:tỉ lệ % theo giá trị-tỷ lể % theo số lượng-tự nhập %-tự nhập giá trị)
-
-
-    Cập nhật tiến đọ lại cho ngày 29/04/2026
-        - cập nhật tiến độ vào roadmap
-        - gửi lại lệnh tạo các data cho supabase đầy đủ để qua tạo mới khi làm lại app
-
-
-        
-Kích hoạt tính giá như thế nào?
-
-A. Tự động sau mỗi phiếu nhập/xuất
-B. Bấm nút "Tính giá HTK" theo kỳ
-
-
-Kết quả hiển thị:
-
-Theo từng sản phẩm + kho + kỳ
-Xuất báo cáo tồn kho?
-
-
-số dư
-    Tồn kho vật tu hàng hóa k laod đc
-    chuyển kho tồn sang năm k load được1: có link tới phiếu mua hàng, có kèm PNH
-Lưu ý-tôi muốn thêm Chi phí mua hàng(CPMH) trong danh mục--> danh mục vật tư hàng 
-hóa với tính chất là "dịch vụ" dung đề phần bổ chi phí cho từng PMH( có link với phiếu nhập kho) cho từng sản phẩm.bgr
+ 
