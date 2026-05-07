@@ -25,6 +25,7 @@ class PhieuThuResponse(BaseModel):
     MaKH: Optional[int] = None
     TienThu: float
     HinhThucTT: str
+    LoaiGiaoDich: Optional[str] = None   # ✅ THÊM
     DienGiai: Optional[str] = None
     TrangThai: str = "DRAFT"
 
@@ -47,6 +48,7 @@ class PhieuChiResponse(BaseModel):
     MaNCC: Optional[int] = None
     TienChi: float
     HinhThucTT: str
+    LoaiGiaoDich: Optional[str] = None
     DienGiai: Optional[str] = None
     TrangThai: str = "DRAFT"
 

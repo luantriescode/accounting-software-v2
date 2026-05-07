@@ -2417,6 +2417,11 @@ const Receipts=()=>{
   const [detail,setDetail]=useState(null)
   const [detailModal,setDetailModal]=useState(false)
   const [detailLoading,setDetailLoading]=useState(false)
+  const [alert,showAlert,closeAlert]=useAlert()
+  const [editModal,setEditModal]=useState(false)
+  const [editForm,setEditForm]=useState(null)
+  const [editLoading,setEditLoading]=useState(false)
+  const sef=k=>e=>setEditForm(f=>({...f,[k]:e.target.value}))
 
   const makeNewSoCT=(list)=>{
     const ym=new Date().toISOString().slice(0,7).replace('-','')
@@ -2434,7 +2439,6 @@ const Receipts=()=>{
     MaKH:'',TienThu:0,HinhThucTT:'Chuyển khoản',LoaiGiaoDich:'',DienGiai:''
   })
   const [form,setForm]=useState(()=>makeEmptyForm())
-  const [alert,showAlert,closeAlert]=useAlert()
   const sf=k=>e=>setForm(f=>({...f,[k]:e.target.value}))
 
   useEffect(()=>{
@@ -2455,6 +2459,45 @@ const Receipts=()=>{
     const r=await api('GET',`/documents/phieu-thu/${row.id}`)
     setDetail(r&&!r.__error?r:{...row,items:[]})
     setDetailLoading(false)
+  }
+  const openEdit=(d)=>{
+    setEditForm({
+      SoCT: d.SoCT,
+      NgayCT: d.NgayCT?.slice(0,10)||today(),
+      MaKyKeToan: d.MaKyKeToan||kyDefault,
+      MaKH: d.MaKH||'',
+      TienThu: d.TienThu||0,
+      HinhThucTT: d.HinhThucTT||'Chuyển khoản',
+      LoaiGiaoDich: d.LoaiGiaoDich||'',
+      DienGiai: d.DienGiai||''
+    })
+    setEditModal(true)
+  }
+
+  const saveEdit=async()=>{
+    if(!editForm.MaKH||!+editForm.TienThu){
+      showAlert('Vui lòng điền đầy đủ Khách Hàng và Số Tiền!','danger'); return
+    }
+    setEditLoading(true)
+    const body={
+      SoCT: editForm.SoCT,
+      NgayCT: editForm.NgayCT,
+      MaKH: +editForm.MaKH,
+      MaKyKeToan: +editForm.MaKyKeToan,
+      TienThu: +editForm.TienThu,
+      HinhThucTT: editForm.HinhThucTT,
+      LoaiGiaoDich: editForm.LoaiGiaoDich,
+      DienGiai: editForm.DienGiai
+    }
+    const r=await api('PUT',`/documents/phieu-thu/${detail.id}`,body)
+    setEditLoading(false)
+    if(r&&!r.__error){
+      showAlert('Cập nhật phiếu thu thành công!')
+      setEditModal(false)
+      setDetailModal(false)
+      setDetail(null)
+      load()
+    } else showAlert('Lỗi: '+(r?.message||'Cập nhật thất bại'),'danger')
   }
 
   const getKHLabel=(id)=>{
@@ -2482,7 +2525,36 @@ const Receipts=()=>{
     {alert&&<Alert msg={alert.msg} type={alert.type} onClose={closeAlert}/>}
     <DetailModal open={detailModal} onClose={()=>{setDetailModal(false);setDetail(null)}}
       title={`💰 Chi Tiết Phiếu Thu - ${detail?.SoCT||''}`}
-      detail={detail} loading={detailLoading} products={[]} customers={customers} suppliers={[]}/>
+      detail={detail} loading={detailLoading} products={[]} customers={customers} suppliers={[]}
+      onEdit={()=>openEdit(detail)}/>
+
+    {/* Edit Modal */}
+    {editModal&&editForm&&<Modal open={editModal} onClose={()=>setEditModal(false)}
+      title={`✏️ Sửa Phiếu Thu - ${editForm.SoCT}`} size="lg">
+      <div className="grid grid-cols-3 gap-3">
+        <Inp label="Số CT" value={editForm.SoCT} disabled hint="Không thể sửa số CT"/>
+        <Inp label="Ngày CT" req type="date" value={editForm.NgayCT} onChange={sef('NgayCT')}/>
+        <Sel label="Kỳ Kế Toán" req value={editForm.MaKyKeToan} onChange={sef('MaKyKeToan')} options={kyOptions}/>
+        <div className="col-span-2">
+          <Sel label="Khách Hàng" req value={editForm.MaKH} onChange={sef('MaKH')}
+            options={customers.map(c=>({value:c.id,label:`${c.TenKH||c.name} (${c.MaKH||c.code})`}))}/>
+        </div>
+        <Sel label="Hình Thức TT" value={editForm.HinhThucTT} onChange={sef('HinhThucTT')}
+          options={['Tiền mặt','Chuyển khoản','Thẻ']}/>
+        <Inp label="Số Tiền Thu" req type="number" value={editForm.TienThu} onChange={sef('TienThu')}/>
+        <Sel label="Loại Giao Dịch" value={editForm.LoaiGiaoDich} onChange={sef('LoaiGiaoDich')}
+          options={loaiGDThu.map(x=>({value:x.value||x.name,label:x.label||x.name}))}/>
+        <div className="col-span-3">
+          <Inp label="Diễn Giải" value={editForm.DienGiai} onChange={sef('DienGiai')}/>
+        </div>
+      </div>
+      <div className="flex justify-end gap-2 mt-4">
+        <Btn v="outline" onClick={()=>setEditModal(false)}>Hủy</Btn>
+        <Btn v="success" onClick={saveEdit} disabled={editLoading}>
+          {editLoading?'Đang lưu...':'💾 Lưu Thay Đổi'}
+        </Btn>
+      </div>
+    </Modal>}
     <Tabs tabs={[{id:'list',label:'📋 Danh Sách'},{id:'create',label:'+ Tạo Mới'}]} active={tab}
       onChange={t=>{setTab(t);if(t==='create') setForm(f=>({...f,SoCT:makeNewSoCT(data)}))}}/>
     {tab==='list'&&<Card>
@@ -2544,6 +2616,10 @@ const Payments=()=>{
   const [detail,setDetail]=useState(null)
   const [detailModal,setDetailModal]=useState(false)
   const [detailLoading,setDetailLoading]=useState(false)
+  const [editModal,setEditModal]=useState(false)
+  const [editForm,setEditForm]=useState(null)
+  const [editLoading,setEditLoading]=useState(false)
+  const sef=k=>e=>setEditForm(f=>({...f,[k]:e.target.value}))
 
   const makeNewSoCT=(list)=>{
     const ym=new Date().toISOString().slice(0,7).replace('-','')
@@ -2583,7 +2659,45 @@ const Payments=()=>{
     setDetail(r&&!r.__error?r:{...row,items:[]})
     setDetailLoading(false)
   }
+  const openEdit=(d)=>{
+    setEditForm({
+      SoCT: d.SoCT,
+      NgayCT: d.NgayCT?.slice(0,10)||today(),
+      MaKyKeToan: d.MaKyKeToan||kyDefault,
+      MaNCC: d.MaNCC||'',
+      TienChi: d.TienChi||0,
+      HinhThucTT: d.HinhThucTT||'Chuyển khoản',
+      LoaiGiaoDich: d.LoaiGiaoDich||'',
+      DienGiai: d.DienGiai||''
+    })
+    setEditModal(true)
+  }
 
+  const saveEdit=async()=>{
+    if(!+editForm.TienChi){
+      showAlert('Vui lòng điền Số Tiền!','danger'); return
+    }
+    setEditLoading(true)
+    const body={
+      SoCT: editForm.SoCT,
+      NgayCT: editForm.NgayCT,
+      MaNCC: editForm.MaNCC?+editForm.MaNCC:null,
+      MaKyKeToan: +editForm.MaKyKeToan,
+      TienChi: +editForm.TienChi,
+      HinhThucTT: editForm.HinhThucTT,
+      LoaiGiaoDich: editForm.LoaiGiaoDich,
+      DienGiai: editForm.DienGiai
+    }
+    const r=await api('PUT',`/documents/phieu-chi/${detail.id}`,body)
+    setEditLoading(false)
+    if(r&&!r.__error){
+      showAlert('Cập nhật phiếu chi thành công!')
+      setEditModal(false)
+      setDetailModal(false)
+      setDetail(null)
+      load()
+    } else showAlert('Lỗi: '+(r?.message||'Cập nhật thất bại'),'danger')
+  }
   const getNCCLabel=(id)=>{
     const s=suppliers.find(x=>String(x.id)===String(id))
     return s?`${s.TenNCC||s.name}`:(id?`NCC #${id}`:'-')
@@ -2610,7 +2724,35 @@ const Payments=()=>{
     {alert&&<Alert msg={alert.msg} type={alert.type} onClose={closeAlert}/>}
     <DetailModal open={detailModal} onClose={()=>{setDetailModal(false);setDetail(null)}}
       title={`💸 Chi Tiết Phiếu Chi - ${detail?.SoCT||''}`}
-      detail={detail} loading={detailLoading} products={[]} customers={[]} suppliers={suppliers}/>
+      detail={detail} loading={detailLoading} products={[]} customers={[]} suppliers={suppliers}
+      onEdit={()=>openEdit(detail)}/>
+
+    {editModal&&editForm&&<Modal open={editModal} onClose={()=>setEditModal(false)}
+      title={`✏️ Sửa Phiếu Chi - ${editForm.SoCT}`} size="lg">
+      <div className="grid grid-cols-3 gap-3">
+        <Inp label="Số CT" value={editForm.SoCT} disabled hint="Không thể sửa số CT"/>
+        <Inp label="Ngày CT" req type="date" value={editForm.NgayCT} onChange={sef('NgayCT')}/>
+        <Sel label="Kỳ Kế Toán" req value={editForm.MaKyKeToan} onChange={sef('MaKyKeToan')} options={kyOptions}/>
+        <div className="col-span-2">
+          <Sel label="Nhà Cung Cấp" value={editForm.MaNCC} onChange={sef('MaNCC')}
+            options={[{value:'',label:'-- Không có --'},...suppliers.map(s=>({value:s.id,label:`${s.TenNCC||s.name} (${s.MaNCC||s.code})`}))]}/>
+        </div>
+        <Sel label="Hình Thức TT" value={editForm.HinhThucTT} onChange={sef('HinhThucTT')}
+          options={['Tiền mặt','Chuyển khoản','Thẻ']}/>
+        <Inp label="Số Tiền Chi" req type="number" value={editForm.TienChi} onChange={sef('TienChi')}/>
+        <Sel label="Loại Giao Dịch" value={editForm.LoaiGiaoDich} onChange={sef('LoaiGiaoDich')}
+          options={loaiGDChi.map(x=>({value:x.value||x.name,label:x.label||x.name}))}/>
+        <div className="col-span-3">
+          <Inp label="Diễn Giải" value={editForm.DienGiai} onChange={sef('DienGiai')}/>
+        </div>
+      </div>
+      <div className="flex justify-end gap-2 mt-4">
+        <Btn v="outline" onClick={()=>setEditModal(false)}>Hủy</Btn>
+        <Btn v="success" onClick={saveEdit} disabled={editLoading}>
+          {editLoading?'Đang lưu...':'💾 Lưu Thay Đổi'}
+        </Btn>
+      </div>
+    </Modal>}
     <Tabs tabs={[{id:'list',label:'📋 Danh Sách'},{id:'create',label:'+ Tạo Mới'}]} active={tab}
       onChange={t=>{setTab(t);if(t==='create') setForm(f=>({...f,SoCT:makeNewSoCT(data)}))}}/>
     {tab==='list'&&<Card>
@@ -3295,7 +3437,7 @@ const SalesOrder=()=>{
     </Card>}
   </div>)
 }
-const DetailModal=({open,onClose,title,detail,loading,products=[],customers=[],suppliers=[]})=>{
+const DetailModal=({open,onClose,title,detail,loading,products=[],customers=[],suppliers=[],onEdit})=>{
   if(!open) return null
 
   const getProductName=(id)=>{
@@ -3471,6 +3613,7 @@ const DetailModal=({open,onClose,title,detail,loading,products=[],customers=[],s
           )}
 
           <div className="flex justify-end gap-2 mt-4">
+            {onEdit&&<Btn v="warning" onClick={onEdit}>✏️ Sửa Phiếu</Btn>}
             <Btn v="outline" onClick={onClose}>Đóng</Btn>
           </div>
         </>

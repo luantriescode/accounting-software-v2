@@ -26,14 +26,13 @@ class Document(Base):
 
 
 class Receipt(Base):
-    """Phiếu thu"""
     __tablename__ = "receipts"
-    
     id = Column(Integer, primary_key=True, index=True)
     document_id = Column(Integer, ForeignKey("documents.id", ondelete="CASCADE"))
     customer_id = Column(Integer, ForeignKey("customers.id"))
     amount = Column(Numeric(15, 2), nullable=False)
     payment_method = Column(String(50))
+    transaction_type = Column(String(100), nullable=True)   # ✅ THÊM
     bank_account = Column(String(50))
     reference_number = Column(String(100))
     notes = Column(Text)
@@ -48,6 +47,7 @@ class Payment(Base):
     supplier_id = Column(Integer, ForeignKey("suppliers.id"))
     amount = Column(Numeric(15, 2), nullable=False)
     payment_method = Column(String(50))
+    transaction_type = Column(String(100), nullable=True) 
     bank_account = Column(String(50))
     reference_number = Column(String(100))
     notes = Column(Text)

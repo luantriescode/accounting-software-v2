@@ -43,6 +43,7 @@ def create_phieu_thu(data: PhieuThuCreate, db: Session = Depends(get_db)):
         customer_id=data.MaKH,
         amount=data.TienThu,
         payment_method=data.HinhThucTT,
+        transaction_type=data.LoaiGiaoDich,
         notes=data.DienGiai
     )
     db.add(receipt)
@@ -56,6 +57,7 @@ def create_phieu_thu(data: PhieuThuCreate, db: Session = Depends(get_db)):
         MaKH=data.MaKH,
         TienThu=float(data.TienThu),
         HinhThucTT=data.HinhThucTT,
+        LoaiGiaoDich=data.LoaiGiaoDich, 
         DienGiai=data.DienGiai,
         TrangThai="DRAFT"
     )
@@ -76,6 +78,7 @@ def get_phieu_thu(db: Session = Depends(get_db)):
             MaKH=r.customer_id,
             TienThu=float(r.amount),
             HinhThucTT=r.payment_method or "",
+            LoaiGiaoDich=r.transaction_type or "",  # ✅ THÊM
             DienGiai=r.notes,
             TrangThai=d.status
         ) for r, d in rows
@@ -91,10 +94,35 @@ def get_phieu_thu_detail(doc_id: int, db: Session = Depends(get_db)):
         "id": r.id, "SoCT": d.document_number,
         "NgayCT": str(d.document_date),
         "MaKH": r.customer_id, "TienThu": float(r.amount),
-        "HinhThucTT": r.payment_method, "DienGiai": r.notes,
-        "TrangThai": d.status
+        "HinhThucTT": r.payment_method,
+        "LoaiGiaoDich": r.transaction_type or "",
+        "DienGiai": r.notes,
+        "TrangThai": d.status,
+        "items": []
     }
+@router.put("/documents/phieu-thu/{doc_id}")
+def update_phieu_thu(doc_id: int, data: PhieuThuCreate, db: Session = Depends(get_db)):
+    r, d = db.query(Receipt, Document).join(
+        Document, Receipt.document_id == Document.id
+    ).filter(Receipt.id == doc_id).first() or (None, None)
+    if not r:
+        raise HTTPException(404, "Không tìm thấy")
 
+    # Cập nhật Document
+    d.document_date = data.NgayCT
+    d.period_id = data.MaKyKeToan
+    d.total_amount = data.TienThu
+    d.description = data.DienGiai
+
+    # Cập nhật Receipt
+    r.customer_id = data.MaKH
+    r.amount = data.TienThu
+    r.payment_method = data.HinhThucTT
+    r.transaction_type = data.LoaiGiaoDich
+    r.notes = data.DienGiai
+
+    db.commit()
+    return {"message": "Cập nhật thành công", "id": doc_id}
 # ============ PHIẾU CHI ============
 @router.post("/documents/phieu-chi", response_model=PhieuChiResponse, status_code=201)
 def create_phieu_chi(data: PhieuChiCreate, db: Session = Depends(get_db)):
@@ -115,6 +143,7 @@ def create_phieu_chi(data: PhieuChiCreate, db: Session = Depends(get_db)):
         supplier_id=data.MaNCC,
         amount=data.TienChi,
         payment_method=data.HinhThucTT,
+        transaction_type=data.LoaiGiaoDich,
         notes=data.DienGiai
     )
     db.add(payment)
@@ -127,6 +156,7 @@ def create_phieu_chi(data: PhieuChiCreate, db: Session = Depends(get_db)):
         NgayCT=data.NgayCT,
         TienChi=float(data.TienChi),
         HinhThucTT=data.HinhThucTT,
+        LoaiGiaoDich=data.LoaiGiaoDich, 
         DienGiai=data.DienGiai,
         TrangThai="DRAFT"
     )
@@ -162,10 +192,33 @@ def get_phieu_chi_detail(doc_id: int, db: Session = Depends(get_db)):
         "id": p.id, "SoCT": d.document_number,
         "NgayCT": str(d.document_date),
         "MaNCC": p.supplier_id, "TienChi": float(p.amount),
-        "HinhThucTT": p.payment_method, "DienGiai": p.notes,
-        "TrangThai": d.status
+        "HinhThucTT": p.payment_method,
+        "LoaiGiaoDich": p.transaction_type or "",  # ✅ THÊM
+        "DienGiai": p.notes,
+        "TrangThai": d.status,
+        "items": []
     }
+@router.put("/documents/phieu-chi/{doc_id}")
+def update_phieu_chi(doc_id: int, data: PhieuChiCreate, db: Session = Depends(get_db)):
+    p, d = db.query(Payment, Document).join(
+        Document, Payment.document_id == Document.id
+    ).filter(Payment.id == doc_id).first() or (None, None)
+    if not p:
+        raise HTTPException(404, "Không tìm thấy")
 
+    d.document_date = data.NgayCT
+    d.period_id = data.MaKyKeToan
+    d.total_amount = data.TienChi
+    d.description = data.DienGiai
+
+    p.supplier_id = data.MaNCC
+    p.amount = data.TienChi
+    p.payment_method = data.HinhThucTT
+    p.transaction_type = data.LoaiGiaoDich
+    p.notes = data.DienGiai
+
+    db.commit()
+    return {"message": "Cập nhật thành công", "id": doc_id}
 # ============ BÁO CÓ ============
 @router.post("/documents/bao-co", response_model=BaoCoResponse, status_code=201)
 def create_bao_co(data: BaoCoCreate, db: Session = Depends(get_db)):
