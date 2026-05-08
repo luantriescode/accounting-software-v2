@@ -24,4 +24,18 @@ cập nhật thư viện= pip install pydantic[email]
 chạy backend= python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8002
 frontend: npm run dev -- --host 0.0.0.0
 
- 
+ khi tạo mới cho phiếu mua hang:
+ ngoài Số CT tự sinh, sẽ thêm ô số phiếu nhập kho tự sinh kèm theo, khi lưu sẽ lấy số phiếu nhạp kho làm số phiếu cho PNK
+
+ CPMH: tạo trong bảng system-config với key: CPMH, value:chi phí mua hàng: co thể thay đổi được( khi chọn CPMH trong phiếu mua hàng sẽ nhập lại tên cho CPMH-value)
+trong phần tạo mới:
+phàn chi tiết có mục Danh sách hàng hóa, yêu cầu mới là tạo thêm tab "Chi phí", hiện tại chi có mỗi danh sách hàng hóa
+mục đích: phân bổ chi phí theo mã hàng hóa trong phần danh sách hàng hóa để ghi nhận vào giá trị nhập kho( giá trị hàng mua+chi phí phần bổ)
+    trong tab chi phí co giao điện như sau:
+        hàng 1: Ô phương thức phần bổ( dropdown): tỷ lê % theo sl, tỷ lệ % theo giá trị, tự nhập %, tự nhập giá trị/ button( Phân Bổ)/tổng chi phí mua hàng
+        hàng 2: danh sách hàng hóa: theo tab danh sach hàng hóa nhé
+        hàng 3: 1 hàng tính tổng của các cột: SỐ lượng/thành tiền/tỷ lệ phân Bổ
+        hàng 4; nút hủy và lưu
+Trong danh hang hóa sẽ luôn có dòng CPMH( có check box để xác nhận chọn hay không): co các trường nhu sau;Mã hàng( CPMH) tên HH: Chí Phí Mua hàng( có thế chinh sửa đc) và các cột SL,Đơn giá, thành tiền lấy theo cột danh sách hàng hóa.
+CPMH có cần tạo DB khong, nêu có thi tọa tong system-config
+

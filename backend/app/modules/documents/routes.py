@@ -505,6 +505,23 @@ def get_phieu_nhap_mua_detail(doc_id: int, db: Session = Depends(get_db)):
                    "unit_price": float(i.unit_price),
                    "total": float(i.quantity * i.unit_price)} for i in items]
     }
+@router.put("/documents/phieu-nhap-mua/{doc_id}")
+def update_phieu_nhap_mua(doc_id: int, data: PhieuNhapMuaCreate, db: Session = Depends(get_db)):
+    p, d = db.query(PurchaseOrder, Document).join(
+        Document, PurchaseOrder.document_id == Document.id
+    ).filter(PurchaseOrder.id == doc_id).first() or (None, None)
+    if not p:
+        raise HTTPException(404, "Không tìm thấy")
+    d.document_date = data.NgayCT
+    d.period_id = data.MaKyKeToan
+    d.description = data.DienGiai
+    p.supplier_id = data.MaNCC
+    p.contact_person = data.NguoiGD
+    p.invoice_number = data.SoHD
+    p.invoice_date = data.NgayHD
+    p.payment_method = data.HinhThucTT
+    db.commit()
+    return {"message": "Cập nhật thành công", "id": doc_id}
 # ============ PHIẾU BÁN HÀNG ============
 @router.post("/documents/phieu-ban-hang", response_model=PhieuBanHangResponse, status_code=201)
 def create_phieu_ban_hang(data: PhieuBanHangCreate, db: Session = Depends(get_db)):

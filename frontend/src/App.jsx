@@ -323,6 +323,7 @@ const DetailTbl=({rows,setRows,products,color='blue',hasTax=false})=>{
           <th className={`px-3 py-2 text-left text-xs font-bold text-${color}-700`}>Tên HH</th>
           <th className={`px-3 py-2 text-right text-xs font-bold text-${color}-700 w-24`}>SL</th>
           <th className={`px-3 py-2 text-right text-xs font-bold text-${color}-700 w-32`}>Đơn Giá</th>
+          <th className="px-2 py-2 text-right text-xs font-bold text-orange-500 w-24">CPMH</th>
           <th className={`px-3 py-2 text-right text-xs font-bold text-${color}-700 w-32`}>Thành Tiền</th>
           {hasTax&&<th className={`px-3 py-2 text-right text-xs font-bold text-${color}-700 w-20`}>%Thuế</th>}
           {hasTax&&<th className={`px-3 py-2 text-right text-xs font-bold text-${color}-700 w-32`}>Tiền Thuế</th>}
@@ -341,7 +342,12 @@ const DetailTbl=({rows,setRows,products,color='blue',hasTax=false})=>{
               <td className="px-2 py-1.5 text-xs text-gray-600">{products.find(p=>(p.id==r.product_id||p.MaHH==r.product_id))?.TenHH||products.find(p=>(p.id==r.product_id||p.MaHH==r.product_id))?.name||'-'}</td>
               <td className="px-2 py-1.5"><input type="number" min="0" value={r.quantity} onChange={e=>upd(i,'quantity',+e.target.value)} className="w-full px-2 py-1 border border-gray-300 rounded text-xs text-right focus:outline-none"/></td>
               <td className="px-2 py-1.5"><input type="number" min="0" value={r.unit_price} onChange={e=>upd(i,'unit_price',+e.target.value)} className="w-full px-2 py-1 border border-gray-300 rounded text-xs text-right focus:outline-none"/></td>
-              <td className="px-3 py-1.5 text-right font-mono text-xs font-semibold">{fmtN((+r.quantity)*(+r.unit_price))}</td>
+              <td className="px-2 py-1.5 text-right font-mono text-sm text-orange-500">
+                        {fmtN(r.chi_phi_phan_bo||0)}
+                      </td>
+                      <td className="px-2 py-1.5 text-right font-mono text-sm font-semibold">
+                        {fmtN((+r.quantity)*(+r.unit_price)+(+r.chi_phi_phan_bo||0))}
+                      </td>
               {hasTax&&<td className="px-2 py-1.5"><input type="number" min="0" max="100" value={r.tax_rate||0} onChange={e=>upd(i,'tax_rate',+e.target.value)} className="w-full px-2 py-1 border border-gray-300 rounded text-xs text-right focus:outline-none"/></td>}
               {hasTax&&<td className="px-3 py-1.5 text-right font-mono text-xs text-orange-600">{fmtN((+r.quantity)*(+r.unit_price)*((+r.tax_rate||0)/100))}</td>}
               <td className="px-2 py-1.5 text-center"><button onClick={()=>del(i)} className="text-red-400 hover:text-red-600 text-base">✕</button></td>
@@ -350,15 +356,19 @@ const DetailTbl=({rows,setRows,products,color='blue',hasTax=false})=>{
         </tbody>
         <tfoot className="bg-gray-50 border-t-2 border-gray-200">
           <tr>
-            <td colSpan={hasTax?5:4} className="px-3 py-2 text-sm font-bold text-blue-700">Tổng Tiền Hàng</td>
-            <td className="px-3 py-2 text-right font-mono font-bold text-blue-700 text-base">{fmt(total)}</td>
+            <td colSpan={hasTax?5:3} className="px-3 py-2 text-sm font-bold text-blue-700">Tổng Tiền Hàng</td>
+            <td className="px-3 py-2 text-right font-mono font-bold text-orange-500">{fmt(rows.reduce((s,r)=>s+(+r.chi_phi_phan_bo||0),0))}</td>
+            <td className="px-3 py-2 text-right font-mono font-bold text-blue-700 text-base">{fmt(rows.reduce((s,r)=>s+(+r.quantity)*(+r.unit_price),0))}</td>
             {hasTax&&<td></td>}
             {hasTax&&<td className="px-3 py-2 text-right font-mono font-bold text-orange-600">{fmt(tax)}</td>}
             <td></td>
           </tr>
           {hasTax&&<tr>
-            <td colSpan={7} className="px-3 py-2 text-right font-bold text-blue-700">Tổng TT: <span className="text-lg font-mono">{fmt(total+tax)}</span></td>
-            <td></td>
+            <td colSpan={8} className="px-3 py-2 text-right font-bold text-blue-700">Tổng TT: <span
+              className="font-mono text-base ml-2">
+              {fmt(rows.reduce((s,r)=>s+(+r.quantity)*(+r.unit_price)+(+r.chi_phi_phan_bo||0),0)
+                +rows.reduce((s,r)=>s+(+r.quantity)*(+r.unit_price)*((+r.tax_rate||0)/100),0))}
+            </span></td>
           </tr>}
         </tfoot>
       </table>
@@ -1443,9 +1453,12 @@ const WarehouseIssuePage=()=>{
                       onChange={e=>upd(i,'unit_price',+e.target.value)}
                       className="w-full px-2 py-1 border border-gray-300 rounded text-xs text-right focus:outline-none"/>
                   </td>
-                  <td className="px-3 py-1.5 text-right font-mono text-xs font-semibold text-blue-700">
-                    {fmtN((+r.quantity)*(+r.unit_price))}
-                  </td>
+                  <td className="px-2 py-1.5 text-right font-mono text-sm text-orange-600">
+                        {fmtN(r.chi_phi_phan_bo||0)}
+                      </td>
+                      <td className="px-2 py-1.5 text-right font-mono text-sm font-semibold">
+                        {fmtN((+r.quantity)*(+r.unit_price))}
+                      </td>
                   <td className="px-2 py-1.5">
                     <button onClick={()=>setRows(rs=>rs.filter((_,ri)=>ri!==i))}
                       className="text-blue-400 hover:text-blue-600 text-base">✕</button>
@@ -3084,6 +3097,10 @@ const PurchaseInvoice=()=>{
   const [detail,setDetail]=useState(null)
   const [detailModal,setDetailModal]=useState(false)
   const [detailLoading,setDetailLoading]=useState(false)
+  const [editModal,setEditModal]=useState(false)
+  const [editForm,setEditForm]=useState(null)
+  const [editLoading,setEditLoading]=useState(false)
+  const sef=k=>e=>setEditForm(f=>({...f,[k]:e.target.value}))
 
   const makeNewSoCT=(list)=>{
     const ym=new Date().toISOString().slice(0,7).replace('-','')
@@ -3097,9 +3114,20 @@ const PurchaseInvoice=()=>{
     return `${pre}-${String(maxNum+1).padStart(3,'0')}`
   }
 
-  const makeEmptyForm=(list=[])=>({
+  const makeNewSoPNK=(pnkList=[])=>{
+    const ym=new Date().toISOString().slice(0,7).replace('-','')
+    const pre=`PNK-${ym}`
+    const maxNum=(pnkList||[]).reduce((mx,r)=>{
+      const s=r.so_phieu_nhap||''; if(!s.startsWith(pre)) return mx
+      const n=parseInt(s.split('-').pop())||0; return n>mx?n:mx
+    },0)
+    return `${pre}-${String(maxNum+1).padStart(3,'0')}`
+  }
+
+  const makeEmptyForm=(list=[],pnkList=[])=>({
     SoCT:makeNewSoCT(list),NgayCT:today(),MaKyKeToan:kyDefault,
-    MaNCC:'',NguoiGD:'',DienGiai:'',SoHD:'',NgayHD:today(),HinhThucTT:'Tiền mặt'
+    MaNCC:'',NguoiGD:'',DienGiai:'',SoHD:'',NgayHD:today(),HinhThucTT:'Tiền mặt',
+    SoPNK:makeNewSoPNK(pnkList)
   })
   const emptyRows=()=>[{product_id:'',quantity:1,unit_price:0,tax_rate:0}]
 
@@ -3107,14 +3135,36 @@ const PurchaseInvoice=()=>{
   const [rows,setRows]=useState(emptyRows())
   const sf=k=>e=>setForm(f=>({...f,[k]:e.target.value}))
 
+  const [pnkList,setPnkList]=useState([])
+  const [detailTab,setDetailTab]=useState('hang')
+  const [useCPMH,setUseCPMH]=useState(false)
+  const [cpmhName,setCpmhName]=useState('Chi Phí Mua Hàng')
+  const [cpmhDonGia,setCpmhDonGia]=useState(0)
+  const [phanBoMethod,setPhanBoMethod]=useState('sl')
+  const [tongChiPhi,setTongChiPhi]=useState(0)
+
   useEffect(()=>{
     api('GET','/suppliers').then(d=>setSuppliers(Array.isArray(d)?d:[]))
     api('GET','/products').then(d=>setProducts(Array.isArray(d)?d:[]))
+    api('GET','/documents/phieu-nhap-kho').then(d=>setPnkList(Array.isArray(d)?d:[]))
   },[])
 
   useEffect(()=>{
-    if(!loading&&tab==='list') setForm(f=>({...f,SoCT:makeNewSoCT(data)}))
+    if(!loading&&tab==='list')
+      setForm(f=>({...f,SoCT:makeNewSoCT(data)}))
   },[data,loading])
+
+  useEffect(()=>{
+    if(pnkList.length>0){
+      console.log('pnkList sample:', JSON.stringify(pnkList[0]))
+      setForm(f=>({...f,SoPNK:makeNewSoPNK(pnkList)}))
+    }
+  },[pnkList])
+
+  useEffect(()=>{
+    if(pnkList.length>0)
+      setForm(f=>({...f,SoPNK:makeNewSoPNK(pnkList)}))
+  },[pnkList])
 
   // Hàm xem chi tiết phiếu
   const openDetail=async(row)=>{
@@ -3125,7 +3175,43 @@ const PurchaseInvoice=()=>{
     setDetail(r&&!r.__error?r:{...row,items:[]})
     setDetailLoading(false)
   }
+  const openEdit=(d)=>{
+    setEditForm({
+      SoCT: d.SoCT||'',
+      NgayCT: String(d.NgayCT||today()).slice(0,10),
+      MaKyKeToan: d.MaKyKeToan||kyDefault,
+      MaNCC: d.MaNCC||d.supplier_id||'',
+      NguoiGD: d.NguoiGD||'',
+      DienGiai: d.DienGiai||'',
+      SoHD: d.SoHD||'',
+      NgayHD: String(d.NgayHD||today()).slice(0,10),
+      HinhThucTT: d.HinhThucTT||'Tiền mặt'
+    })
+    setEditModal(true)
+  }
 
+  const saveEdit=async()=>{
+    if(!editForm.MaNCC){showAlert('Vui lòng chọn Nhà Cung Cấp!','danger');return}
+    setEditLoading(true)
+    const body={
+      SoCT: editForm.SoCT,
+      NgayCT: editForm.NgayCT,
+      MaNCC: +editForm.MaNCC,
+      MaKyKeToan: +editForm.MaKyKeToan,
+      NguoiGD: editForm.NguoiGD,
+      DienGiai: editForm.DienGiai,
+      SoHD: editForm.SoHD,
+      NgayHD: editForm.NgayHD,
+      HinhThucTT: editForm.HinhThucTT,
+      DanhSachHang: detail.items?.map(i=>({MaHH:i.product_id,SoLuong:i.quantity,DonGia:i.unit_price,GhiChu:''})) || []
+    }
+    const r=await api('PUT',`/documents/phieu-nhap-mua/${detail.id}`,body)
+    setEditLoading(false)
+    if(r&&!r.__error){
+      showAlert('Cập nhật phiếu nhập mua thành công!')
+      setEditModal(false); setDetailModal(false); setDetail(null); load()
+    } else showAlert('Lỗi: '+(r?.message||'Cập nhật thất bại'),'danger')
+  }
   // Helper tên NCC
   const getNCCLabel=(id)=>{
     if(!id) return '-'
@@ -3149,18 +3235,55 @@ const PurchaseInvoice=()=>{
     }
     const r=await api('POST','/documents/phieu-nhap-mua',body)
     if(r&&!r.__error){
-      showAlert(`Tạo PNM ${form.SoCT} thành công!`)
+      // ✅ Tự động tạo PNK liên kết
+      const pnkItems=validRows.map(row=>({
+        product_id:+row.product_id,
+        warehouse_id:+row.warehouse_id||1,
+        quantity:+row.quantity,
+        unit_price:+row.unit_price
+      }))
+      // Thêm dòng CPMH nếu có
+      if(useCPMH&&+cpmhDonGia>0){
+        pnkItems.push({
+          product_id:null,
+          warehouse_id:1,
+          quantity:1,
+          unit_price:+cpmhDonGia,
+          is_cpmh:true,
+          ten_cpmh:cpmhName
+        })
+      }
+      const pnkBody={
+        so_phieu_nhap: form.SoPNK,
+        ngay_phieu_nhap: form.NgayCT,
+        loai_phieu_nhap: 'Nhập mua',
+        nha_cung_cap_id: +form.MaNCC,
+        nguoi_giao_dich: form.NguoiGD,
+        dien_giai: `Nhập kho cho ${form.SoCT}`,
+        ky_ke_toan_id: +form.MaKyKeToan,
+        items: pnkItems.filter(i=>i.product_id)
+      }
+      const pnkRes=await api('POST','/documents/phieu-nhap-kho',pnkBody)
+      if(pnkRes&&!pnkRes.__error)
+        showAlert(`Tạo PNM ${form.SoCT} thành công! Đã tạo PNK ${form.SoPNK} liên kết.`)
+      else
+        showAlert(`Tạo PNM ${form.SoCT} thành công! (Tạo PNK thất bại: ${pnkRes?.message||'lỗi'})`, 'warning')
+
       const newData=await api('GET','/documents/phieu-nhap-mua')
+      const newPnk=await api('GET','/documents/phieu-nhap-kho')
       const list=Array.isArray(newData)?newData:[]
-      setForm(makeEmptyForm(list))
+      setPnkList(Array.isArray(newPnk)?newPnk:[])
+      setForm(makeEmptyForm(list,Array.isArray(newPnk)?newPnk:[]))
       setRows(emptyRows())
-      load()
-      setTab('list')
+      setUseCPMH(false); setCpmhDonGia(0); setDetailTab('hang')
+      load(); setTab('list')
     } else showAlert('Lỗi: '+(r?.message||'Tạo PNM thất bại'),'danger')
   }
 
-  const total=rows.reduce((s,r)=>s+(+r.quantity)*(+r.unit_price),0)
-  const totalTax=rows.reduce((s,r)=>s+(+r.quantity)*(+r.unit_price)*((+r.tax_rate||0)/100),0)
+  const totalHH=rows.reduce((s,r)=>s+(+r.quantity)*(+r.unit_price),0)
+  const totalTax=rows.reduce((s,r)=>s+(+r.quantity)*(+r.unit_price)*(+r.tax||0)/100,0)
+  const totalCPMH=useCPMH?+cpmhDonGia:0
+  const total=totalHH+totalTax+totalCPMH
 
   return(<div className="space-y-4">
     {alert&&<Alert msg={alert.msg} type={alert.type} onClose={closeAlert}/>}
@@ -3174,13 +3297,52 @@ const PurchaseInvoice=()=>{
       loading={detailLoading}
       products={products}
       customers={[]}
-      suppliers={suppliers}/>
+      suppliers={suppliers}
+      onEdit={detail?()=>openEdit(detail):null}/>      
+    {editModal&&editForm&&<Modal open={editModal} onClose={()=>setEditModal(false)}
+      title={`✏️ Sửa Phiếu Nhập Mua - ${editForm.SoCT}`} size="lg">
+      <div className="grid grid-cols-3 gap-3">
+        <Inp label="Số CT" value={editForm.SoCT} disabled hint="Không thể sửa số CT"/>
+        <Inp label="Ngày CT" req type="date" value={editForm.NgayCT} onChange={sef('NgayCT')}/>
+        <Sel label="Kỳ Kế Toán" req value={editForm.MaKyKeToan} onChange={sef('MaKyKeToan')} options={kyOptions}/>
+        <div className="col-span-2">
+          <Sel label="Nhà Cung Cấp" req value={editForm.MaNCC} onChange={sef('MaNCC')}
+            options={suppliers.map(s=>({value:s.id,label:`${s.TenNCC||s.name} (${s.MaNCC||s.code})`}))}/>
+        </div>
+        <Sel label="Hình Thức TT" value={editForm.HinhThucTT} onChange={sef('HinhThucTT')}
+          options={['Tiền mặt','Chuyển khoản','Thẻ']}/>
+        <Inp label="Số HĐ" value={editForm.SoHD} onChange={sef('SoHD')}/>
+        <Inp label="Ngày HĐ" type="date" value={editForm.NgayHD} onChange={sef('NgayHD')}/>
+        <Inp label="Người Giao Dịch" value={editForm.NguoiGD} onChange={sef('NguoiGD')}/>
+        <div className="col-span-3">
+          <Inp label="Diễn Giải" value={editForm.DienGiai} onChange={sef('DienGiai')}/>
+        </div>
+      </div>
+      <p className="text-xs text-gray-500 mt-3 bg-yellow-50 p-2 rounded">
+        ⚠️ Chỉnh sửa thông tin header. Danh sách hàng hóa giữ nguyên từ phiếu gốc.
+      </p>
+      <div className="flex justify-end gap-2 mt-4">
+        <Btn v="outline" onClick={()=>setEditModal(false)}>Hủy</Btn>
+        <Btn v="success" onClick={saveEdit} disabled={editLoading}>
+          {editLoading?'Đang lưu...':'💾 Lưu Thay Đổi'}
+        </Btn>
+      </div>
+    </Modal>}
 
     <Tabs tabs={[{id:'list',label:'📋 Danh Sách'},{id:'create',label:'+ Tạo Mới'}]}
       active={tab}
       onChange={t=>{
         setTab(t)
-        if(t==='create'){setForm(makeEmptyForm(data));setRows(emptyRows())}
+        if(t==='create'){
+          // Reload PNK list để sinh số không trùng
+          api('GET','/documents/phieu-nhap-kho').then(newPnk=>{
+            const list=Array.isArray(newPnk)?newPnk:[]
+            setPnkList(list)
+            setForm(makeEmptyForm(data,list))
+          })
+          setRows(emptyRows())
+          setUseCPMH(false); setCpmhDonGia(0); setDetailTab('hang')
+        }
       }}/>
 
     {/* ── DANH SÁCH ── */}
@@ -3188,8 +3350,10 @@ const PurchaseInvoice=()=>{
       <CH>
         <h3 className="font-bold">🛒 Danh Sách Phiếu Nhập Mua</h3>
         <div className="ml-auto flex gap-2">
-          <Btn v="pdf" size="sm">⬇ PDF</Btn>
-          <Btn v="excel" size="sm">⬇ Excel</Btn>
+          <Btn v="excel" size="sm" onClick={()=>exportExcel('PhieuNhapMua','Phiếu Nhập Mua',
+            ['Số CT','Ngày CT','Nhà Cung Cấp','Tổng Tiền','Trạng Thái'],
+            data.map(r=>[r.SoCT,fmtDate(r.NgayCT),getNCCLabel(r.MaNCC||r.supplier_id),r.TongTien||0,r.TrangThai||'DRAFT'])
+          )}>⬇ Excel</Btn>
         </div>
       </CH>
       <p className="px-4 py-1.5 text-xs text-blue-600 bg-blue-50 border-b border-blue-100">
@@ -3223,6 +3387,7 @@ const PurchaseInvoice=()=>{
       <CB>
         <div className="grid grid-cols-3 gap-3 mb-4">
           <Inp label="Số CT" req value={form.SoCT} onChange={sf('SoCT')} hint="Tự sinh, có thể sửa"/>
+          <Inp label="Số PNK" req value={form.SoPNK} onChange={sf('SoPNK')} hint="Số phiếu nhập kho"/>
           <Inp label="Ngày CT" req type="date" value={form.NgayCT} onChange={sf('NgayCT')}/>
           <Sel label="Kỳ Kế Toán" req value={form.MaKyKeToan} onChange={sf('MaKyKeToan')} options={kyOptions}/>
           <div className="col-span-2">
@@ -3239,21 +3404,200 @@ const PurchaseInvoice=()=>{
           </div>
         </div>
 
-        <p className="text-xs font-bold text-gray-600 mb-2">Danh Sách Hàng Hóa:</p>
-        <DetailTbl rows={rows} setRows={setRows} products={products} color="blue" hasTax={true}/>
+        {/* Tab Hàng HH / Chi Phí */}
+        <div className="flex border-b border-gray-200 mb-3">
+          <button onClick={()=>setDetailTab('hang')}
+            className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-[2px] ${detailTab==='hang'?'border-blue-600 text-blue-600':'border-transparent text-gray-500 hover:text-gray-700'}`}>
+            📦 Danh Sách Hàng Hóa
+          </button>
+          <button onClick={()=>setDetailTab('chiphi')}
+            className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-[2px] ${detailTab==='chiphi'?'border-orange-500 text-orange-600':'border-transparent text-gray-500 hover:text-gray-700'}`}>
+            💰 Chi Phí
+          </button>
+        </div>
+
+        {detailTab==='hang'&&<>
+          <DetailTbl rows={rows} setRows={setRows} products={products} color="blue" hasTax={true}/>
+          {/* Dòng CPMH cố định */}
+          <div className={`mt-2 p-3 rounded-lg border-2 ${useCPMH?'border-green-400 bg-blue-50':'border-dashed border-gray-300 bg-gray-50'}`}>
+            <div className="flex items-center gap-3">
+              <input type="checkbox" checked={useCPMH} onChange={e=>setUseCPMH(e.target.checked)}
+                className="w-4 h-4 accent-green-500 cursor-pointer"/>
+              <span className="text-xs font-bold text-gray-500 w-16">CPMH</span>
+              <input value={cpmhName} onChange={e=>setCpmhName(e.target.value)}
+                disabled={!useCPMH}
+                className={`flex-1 px-2 py-1 text-sm border rounded ${useCPMH?'border-blue-300 bg-white':'border-gray-200 bg-gray-100 text-gray-400'}`}/>
+              <span className="text-xs text-gray-500 w-6">1</span>
+              <input type="number" value={cpmhDonGia} onChange={e=>setCpmhDonGia(+e.target.value)}
+                disabled={!useCPMH} min="0"
+                className={`w-32 px-2 py-1 text-sm border rounded text-right ${useCPMH?'border-green-300 bg-white':'border-gray-200 bg-gray-100 text-gray-400'}`}/>
+              <span className={`w-32 text-right text-sm font-mono font-semibold ${useCPMH?'text-green-700':'text-gray-400'}`}>
+                {useCPMH?fmtN(cpmhDonGia):'0'}
+              </span>
+            </div>
+            {!useCPMH&&<p className="text-xs text-red-500 mt-1 ml-7">☑ Tick để thêm Chi Phí Mua Hàng</p>}
+          </div>
+        </>}
+
+        {detailTab==='chiphi'&&<div className="space-y-3">
+          {!useCPMH
+            ?<div className="p-6 text-center bg-orange-50 border-2 border-dashed border-orange-300 rounded-lg">
+              <p className="text-orange-600 font-semibold">⚠️ Cần bật CPMH ở tab Danh Sách Hàng Hóa trước</p>
+              <p className="text-xs text-gray-500 mt-1">Tick vào checkbox CPMH và nhập đơn giá để sử dụng tính năng phân bổ chi phí</p>
+              <Btn v="warning" onClick={()=>setDetailTab('hang')} className="mt-3">← Quay lại Tab Hàng Hóa</Btn>
+            </div>
+            :<>
+              {/* Header */}
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+                <div className="flex items-center gap-3">
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Phương thức phân bổ</p>
+                    <select value={phanBoMethod} onChange={e=>{
+                      setPhanBoMethod(e.target.value)
+                      // Reset phân bổ khi đổi phương thức
+                      setRows(rs=>rs.map(r=>({...r,chi_phi_phan_bo:0,ty_le_phan_bo:0})))
+                    }}
+                      className="px-3 py-2 border border-gray-300 rounded text-sm bg-white min-w-[200px]">
+                      <option value="sl">Tỷ lệ % theo số lượng</option>
+                      <option value="gt">Tỷ lệ % theo giá trị</option>
+                      <option value="pct">Tự nhập %</option>
+                      <option value="val">Tự nhập giá trị</option>
+                    </select>
+                  </div>
+                  <button onClick={()=>{
+                    const validR=rows.filter(r=>r.product_id&&+r.quantity>0)
+                    if(!validR.length) return
+                    const cp=+cpmhDonGia
+                    if(!cp){showAlert('Vui lòng nhập đơn giá CPMH!','warning');return}
+                    const tongSL=validR.reduce((s,r)=>s+(+r.quantity),0)
+                    const tongGT=validR.reduce((s,r)=>s+(+r.quantity)*(+r.unit_price),0)
+                    setRows(rs=>rs.map(r=>{
+                      if(!r.product_id||!+r.quantity) return r
+                      let pb=0, tl=0
+                      if(phanBoMethod==='sl'){
+                        tl=tongSL?(+r.quantity/tongSL*100):0
+                        pb=Math.round(cp*(+r.quantity/tongSL))
+                      } else if(phanBoMethod==='gt'){
+                        const gt=(+r.quantity)*(+r.unit_price)
+                        tl=tongGT?(gt/tongGT*100):0
+                        pb=Math.round(cp*(gt/tongGT))
+                      }
+                      return {...r,chi_phi_phan_bo:pb,ty_le_phan_bo:Math.round(tl*100)/100}
+                    }))
+                  }}
+                    className="mt-5 px-5 py-2 bg-blue-600 text-white text-sm font-semibold rounded hover:bg-blue-700">
+                    Phân Bổ
+                  </button>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-gray-500 mb-1">Tổng chi phí mua hàng</p>
+                  <p className="text-2xl font-bold font-mono text-gray-800">{fmtN(cpmhDonGia)}</p>
+                </div>
+              </div>
+
+              {/* Bảng phân bổ */}
+              <div className="border border-gray-200 rounded-lg overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-100 border-b border-gray-200">
+                    <tr>
+                      <th className="px-3 py-2.5 text-left text-xs font-bold text-gray-700 w-28">MÃ HÀNG</th>
+                      <th className="px-3 py-2.5 text-left text-xs font-bold text-gray-700">TÊN HÀNG</th>
+                      <th className="px-3 py-2.5 text-right text-xs font-bold text-gray-700 w-24">SỐ LƯỢNG</th>
+                      <th className="px-3 py-2.5 text-right text-xs font-bold text-gray-700 w-32">THÀNH TIỀN</th>
+                      <th className="px-3 py-2.5 text-right text-xs font-bold text-gray-700 w-32">TỶ LỆ PHÂN BỔ</th>
+                      <th className="px-3 py-2.5 text-right text-xs font-bold text-gray-700 w-32">CHI PHÍ MUA HÀNG</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {rows.filter(r=>r.product_id&&+r.quantity>0).map((r,i,arr)=>{
+                      const p=products.find(x=>String(x.id)===String(r.product_id))
+                      const tt=(+r.quantity)*(+r.unit_price)
+                      const origIdx=rows.indexOf(r)
+                      return(
+                        <tr key={i} className="hover:bg-gray-50">
+                          <td className="px-3 py-2.5 font-mono text-xs text-gray-600">{p?.MaHH||p?.code||'-'}</td>
+                          <td className="px-3 py-2.5 font-medium">{p?.TenHH||p?.name||`SP #${r.product_id}`}</td>
+                          <td className="px-3 py-2.5 text-right font-mono">{fmtN(+r.quantity)}</td>
+                          <td className="px-3 py-2.5 text-right font-mono">{fmtN(tt)}</td>
+                          <td className="px-3 py-2.5 text-right">
+                            {(phanBoMethod==='pct')
+                              ?<input type="number" value={r.ty_le_phan_bo||0}
+                                  onChange={e=>setRows(rs=>rs.map((x,xi)=>{
+                                    if(xi!==origIdx) return x
+                                    const tl=+e.target.value
+                                    return {...x,ty_le_phan_bo:tl,chi_phi_phan_bo:Math.round(+cpmhDonGia*tl/100)}
+                                  }))}
+                                  className="w-24 px-2 py-1 border border-gray-300 rounded text-xs text-right"/>
+                              :<span className="font-mono text-gray-700">{(r.ty_le_phan_bo||0).toFixed(2)}%</span>
+                            }
+                          </td>
+                          <td className="px-3 py-2.5 text-right">
+                            {phanBoMethod==='val'
+                              ?<input type="number" value={r.chi_phi_phan_bo||0}
+                                  onChange={e=>setRows(rs=>rs.map((x,xi)=>xi===origIdx?{...x,chi_phi_phan_bo:+e.target.value}:x))}
+                                  className="w-24 px-2 py-1 border border-gray-300 rounded text-xs text-right"/>
+                              :<span className="font-mono font-semibold text-blue-700">{fmtN(r.chi_phi_phan_bo||0)}</span>
+                            }
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                  <tfoot className="bg-gray-100 border-t-2 border-gray-300">
+                    <tr>
+                      <td colSpan={2} className="px-3 py-2.5 font-bold text-sm text-gray-700"></td>
+                      <td className="px-3 py-2.5 text-right font-mono font-bold">
+                        {fmtN(rows.reduce((s,r)=>s+(+r.quantity||0),0))}
+                      </td>
+                      <td className="px-3 py-2.5 text-right font-mono font-bold">
+                        {fmtN(rows.reduce((s,r)=>s+(+r.quantity||0)*(+r.unit_price||0),0))}
+                      </td>
+                      <td className="px-3 py-2.5 text-right font-mono font-bold text-gray-700">
+                        {(rows.reduce((s,r)=>s+(+r.ty_le_phan_bo||0),0)).toFixed(2)}%
+                      </td>
+                      <td className="px-3 py-2.5 text-right font-mono font-bold text-blue-700">
+                        {fmtN(rows.reduce((s,r)=>s+(+r.chi_phi_phan_bo||0),0))}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+              {/* Nút */}
+              <div className="flex justify-end gap-2 pt-2">
+                <Btn v="outline" onClick={()=>{
+                  setRows(rs=>rs.map(r=>({...r,chi_phi_phan_bo:0,ty_le_phan_bo:0})))
+                }}>Hủy Phân Bổ</Btn>
+                <Btn v="success" onClick={()=>{
+                  const tong=rows.reduce((s,r)=>s+(+r.chi_phi_phan_bo||0),0)
+                  if(+cpmhDonGia>0&&tong!==+cpmhDonGia){
+                    showAlert(`Tổng phân bổ (${fmtN(tong)}) chưa khớp Tổng CP (${fmtN(+cpmhDonGia)})!`,'warning')
+                    return
+                  }
+                  showAlert('✅ Đã xác nhận phân bổ chi phí!')
+                  setDetailTab('hang')
+                }}>✅ Xác Nhận Phân Bổ</Btn>
+              </div>
+            </>
+          }
+        </div>}
 
         <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-          <div className="flex justify-between text-sm mb-1">
-            <span className="text-blue-700 font-semibold">Tổng Tiền Hàng:</span>
-            <span className="font-bold font-mono text-blue-800">{fmt(total)}</span>
+          <div className="flex justify-between items-center mb-1">
+            <span className="text-sm text-blue-700">Tiền Hàng:</span>
+            <span className="font-mono text-blue-700">{fmt(totalHH)}</span>
           </div>
-          <div className="flex justify-between text-sm mb-1">
-            <span className="text-orange-600 font-semibold">Tiền Thuế:</span>
-            <span className="font-bold font-mono text-orange-600">{fmt(totalTax)}</span>
+          <div className="flex justify-between items-center mb-1">
+            <span className="text-sm text-orange-600">Tiền Thuế:</span>
+            <span className="font-mono text-orange-600">{fmt(totalTax)}</span>
           </div>
-          <div className="flex justify-between text-base pt-2 border-t border-blue-200">
-            <span className="text-blue-900 font-bold">Tổng Thanh Toán:</span>
-            <span className="font-bold font-mono text-blue-900">{fmt(total+totalTax)}</span>
+          {useCPMH&&<div className="flex justify-between items-center mb-1">
+            <span className="text-sm text-orange-600">Chi Phí Mua Hàng (CPMH):</span>
+            <span className="font-mono text-orange-600">{fmt(totalCPMH)}</span>
+          </div>}
+          <div className="flex justify-between items-center mt-2 pt-2 border-t border-blue-200">
+            <span className="text-sm font-bold text-blue-800">Tổng Thanh Toán:</span>
+            <span className="text-xl font-bold text-blue-700 font-mono">{fmt(total)}</span>
           </div>
         </div>
       </CB>
@@ -3420,7 +3764,16 @@ const SalesOrder=()=>{
       active={tab}
       onChange={t=>{
         setTab(t)
-        if(t==='create'){setForm(makeEmptyForm(data));setRows(emptyRows())}
+        if(t==='create'){
+          // Reload PNK list để sinh số không trùng
+          api('GET','/documents/phieu-nhap-kho').then(newPnk=>{
+            const list=Array.isArray(newPnk)?newPnk:[]
+            setPnkList(list)
+            setForm(makeEmptyForm(data,list))
+          })
+          setRows(emptyRows())
+          setUseCPMH(false); setCpmhDonGia(0); setDetailTab('hang')
+        }
       }}/>
 
     {/* ── DANH SÁCH ── */}
@@ -3687,8 +4040,9 @@ const DetailModal=({open,onClose,title,detail,loading,products=[],customers=[],s
                       <th className="px-3 py-2 text-left text-xs font-bold text-gray-600 w-10">STT</th>
                       <th className="px-3 py-2 text-left text-xs font-bold text-gray-600">Hàng Hóa</th>
                       <th className="px-3 py-2 text-right text-xs font-bold text-gray-600 w-16">SL</th>
-                      <th className="px-3 py-2 text-right text-xs font-bold text-gray-600 w-28">Đơn Giá</th>
-                      <th className="px-3 py-2 text-right text-xs font-bold text-gray-600 w-28">Thành Tiền</th>
+                      <th className="px-2 py-2 text-right text-xs font-bold w-28">Đơn Giá</th>
+                      <th className="px-2 py-2 text-right text-xs font-bold w-24 text-orange-600">CPMH</th>
+                      <th className="px-2 py-2 text-right text-xs font-bold w-28">Thành Tiền</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
