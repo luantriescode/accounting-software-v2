@@ -30,7 +30,9 @@ class WarehouseReceipt(Base):
     nha_cung_cap_id = Column(Integer, ForeignKey("suppliers.id"))
     dia_chi = Column(String(500))
     nguoi_giao_dich = Column(String(100))
-    dien_giai = Column(Text)
+    dien_giai = Column(Text, nullable=True)
+    pnm_id = Column(Integer, nullable=True)                    # ✅ THÊM
+    updated_from_pnm_at = Column(DateTime, nullable=True)      # ✅ THÊM
     period_id = Column(Integer, ForeignKey("fiscal_periods.id"), nullable=False)
     tong_tien = Column(Numeric(15, 2), default=0)
     tong_so_luong = Column(Integer, default=0)
@@ -48,6 +50,7 @@ class WarehouseReceiptItem(Base):
     warehouse_id = Column(Integer, ForeignKey("warehouses.id"), nullable=False)
     quantity = Column(Integer, nullable=False)
     unit_price = Column(Numeric(15, 2), nullable=False)
+    chi_phi_phan_bo = Column(Numeric(15, 2), default=0)    # ✅ THÊM
     total_amount = Column(Numeric(15, 2), Computed("quantity * unit_price", persisted=True))
     current_stock = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)

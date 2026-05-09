@@ -122,12 +122,16 @@ const Tabs=({tabs,active,onChange})=>(
 
 const Alert=({msg,type='success',onClose})=>{
   if(!msg) return null
-  const S={success:'bg-green-50 border-green-300 text-green-800',danger:'bg-red-50 border-red-300 text-red-800',
-    info:'bg-blue-50 border-blue-300 text-blue-800',warning:'bg-yellow-50 border-yellow-300 text-yellow-800'}
+  const S={success:'bg-green-50 border-green-400 text-green-800',danger:'bg-red-50 border-red-400 text-red-800',
+    info:'bg-blue-50 border-blue-400 text-blue-800',warning:'bg-yellow-50 border-yellow-400 text-yellow-800'}
+  const I={success:'✅',danger:'❌',info:'ℹ️',warning:'⚠️'}
   return(
-    <div className={`flex items-start justify-between gap-3 px-4 py-3 rounded-lg border text-sm mb-4 ${S[type]}`}>
-      <span className="flex-1">{msg}</span>
-      {onClose&&<button onClick={onClose} className="opacity-60 hover:opacity-100 flex-shrink-0">✕</button>}
+    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[9999] min-w-[320px] max-w-[500px] shadow-lg animate-bounce-in"
+      style={{animation:'slideDown 0.3s ease-out'}}>
+      <div className={`flex items-start justify-between gap-3 px-4 py-3 rounded-lg border-2 text-sm ${S[type]}`}>
+        <span className="flex-1 font-medium">{I[type]} {msg}</span>
+        {onClose&&<button onClick={onClose} className="opacity-60 hover:opacity-100 flex-shrink-0 text-lg leading-none">✕</button>}
+      </div>
     </div>
   )
 }
@@ -252,13 +256,13 @@ const BREAD={
   'rpt-payroll':['Báo Cáo','Bảng Lương'],'rpt-debt':['Báo Cáo','Công Nợ'],
 }
 
-const Sidebar=({page,onNav})=>{
+const Sidebar=({page,onNav,open:sidebarOpen=true})=>{
   const [open,setOpen]=useState({system:true})
   return(
-    <aside className="fixed left-0 top-0 w-[260px] h-screen bg-[#0f1923] flex flex-col z-50">
+    <aside className={`fixed left-0 top-0 w-[260px] h-screen bg-[#0f1923] flex flex-col z-50 transition-transform duration-300 ${sidebarOpen?'translate-x-0':'-translate-x-full'}`}>
       <div className="h-[52px] px-4 flex items-center gap-3 border-b border-white/10 flex-shrink-0">
         <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center text-base flex-shrink-0">📊</div>
-        <div><div className="text-white text-xs font-bold">KẾ TOÁN HKD</div><div className="text-white/40 text-[10px]">V2.0 | Hộ Kinh Doanh</div></div>
+        <div><div className="text-white text-xs font-bold">ACCOUNTING-APP</div><div className="text-white/40 text-[10px]">V2.0 | Hộ Kinh Doanh</div></div>
       </div>
       <nav className="flex-1 overflow-y-auto py-2" style={{scrollbarWidth:'thin',scrollbarColor:'rgba(255,255,255,0.1) transparent'}}>
         {NAV.map(m=>(
@@ -282,24 +286,55 @@ const Sidebar=({page,onNav})=>{
           </div>
         ))}
       </nav>
-      <div className="px-4 py-2 border-t border-white/10 text-center text-[10px] text-white/30 flex-shrink-0">© 2026 HKD Accounting Software</div>
+      <div className="px-4 py-2 border-t border-white/10 text-center text-[10px] text-white/30 flex-shrink-0">© MrLuan Accounting-App HKD</div>
     </aside>
   )
 }
 
-const Topbar=({page})=>{
+const Topbar=({page, onNav, onToggleSidebar, sidebarOpen})=>{
   const c=BREAD[page]||[]
+  const groupFirstPage={
+    'Khai Báo Hệ Thống':'sys-company',
+    'Danh Mục':'dm-customers',
+    'Số Dư':'ob-cash',
+    'Nghiệp Vụ':'nv-pt',
+    'Báo Cáo':'rpt-tonkho',
+  }
   return(
-    <div className="fixed top-0 left-[260px] right-0 h-[52px] bg-white border-b border-gray-200 flex items-center px-5 gap-3 z-40">
+    <div className={`fixed top-0 right-0 h-[52px] bg-white border-b border-gray-200 flex items-center px-4 gap-3 z-40 transition-all duration-300 ${sidebarOpen?'left-[260px]':'left-0'}`}>
+      {/* Nút ☰ toggle sidebar */}
+      <button onClick={onToggleSidebar}
+        className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-gray-100 text-gray-500 hover:text-gray-800 transition-colors flex-shrink-0">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+          <line x1="2" y1="4" x2="16" y2="4"/>
+          <line x1="2" y1="9" x2="16" y2="9"/>
+          <line x1="2" y1="14" x2="16" y2="14"/>
+        </svg>
+      </button>
+
+      {/* Breadcrumb */}
       <div className="flex items-center gap-1.5 text-sm">
-        <span className="text-gray-400">Trang Chủ</span>
+        <button onClick={()=>onNav('dashboard')}
+          className="text-blue-600 hover:text-blue-800 hover:underline font-medium transition-colors">
+          Trang Chủ
+        </button>
         {c.map((x,i)=>(
           <React.Fragment key={i}>
-            <span className="text-gray-300">/</span>
-            <span className={i===c.length-1?'font-semibold text-gray-900':'text-gray-400'}>{x}</span>
+            <span className="text-gray-300 mx-0.5">/</span>
+            {i===c.length-1
+              ?<span className="font-semibold text-gray-900">{x}</span>
+              :groupFirstPage[x]
+                ?<button onClick={()=>onNav(groupFirstPage[x])}
+                    className="text-blue-600 hover:text-blue-800 hover:underline font-medium transition-colors">
+                    {x}
+                  </button>
+                :<span className="text-gray-400">{x}</span>
+            }
           </React.Fragment>
         ))}
       </div>
+
+      {/* Right side — giữ nguyên */}
       <div className="ml-auto flex items-center gap-3">
         <span className="px-3 py-1 bg-blue-50 border border-blue-200 rounded-lg text-xs font-semibold text-blue-700">📅 Tháng 4/2026</span>
         <div className="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center text-sm font-bold">A</div>
@@ -320,13 +355,13 @@ const DetailTbl=({rows,setRows,products,color='blue',hasTax=false})=>{
       <table className="w-full text-sm">
         <thead className={`bg-${color}-50`}><tr>
           <th className={`px-3 py-2 text-left text-xs font-bold text-${color}-700 w-28`}>Mã Hàng</th>
-          <th className={`px-3 py-2 text-left text-xs font-bold text-${color}-700`}>Tên HH</th>
+          <th className={`px-3 py-2 text-left text-xs font-bold text-${color}-700`}>Tên Hàng Hóa</th>
           <th className={`px-3 py-2 text-right text-xs font-bold text-${color}-700 w-24`}>SL</th>
           <th className={`px-3 py-2 text-right text-xs font-bold text-${color}-700 w-32`}>Đơn Giá</th>
           <th className="px-2 py-2 text-right text-xs font-bold text-orange-500 w-24">CPMH</th>
           <th className={`px-3 py-2 text-right text-xs font-bold text-${color}-700 w-32`}>Thành Tiền</th>
           {hasTax&&<th className={`px-3 py-2 text-right text-xs font-bold text-${color}-700 w-20`}>%Thuế</th>}
-          {hasTax&&<th className={`px-3 py-2 text-right text-xs font-bold text-${color}-700 w-32`}>Tiền Thuế</th>}
+          {hasTax&&<th className={`px-3 py-2 text-right text-xs font-bold text-orange-500 w-32`}>Tiền Thuế</th>}
           <th className="w-8"></th>
         </tr></thead>
         <tbody className="divide-y divide-gray-100">
@@ -356,15 +391,15 @@ const DetailTbl=({rows,setRows,products,color='blue',hasTax=false})=>{
         </tbody>
         <tfoot className="bg-gray-50 border-t-2 border-gray-200">
           <tr>
-            <td colSpan={hasTax?5:3} className="px-3 py-2 text-sm font-bold text-blue-700">Tổng Tiền Hàng</td>
-            <td className="px-3 py-2 text-right font-mono font-bold text-orange-500">{fmt(rows.reduce((s,r)=>s+(+r.chi_phi_phan_bo||0),0))}</td>
-            <td className="px-3 py-2 text-right font-mono font-bold text-blue-700 text-base">{fmt(rows.reduce((s,r)=>s+(+r.quantity)*(+r.unit_price),0))}</td>
+            <td colSpan={hasTax?4:3} className="px-3 py-2 text-sm font-bold text-blue-700">Tạm Tính:</td>
+            <td className="px-2 py-2 text-right font-mono font-bold text-orange-500">{fmt(rows.reduce((s,r)=>s+(+r.chi_phi_phan_bo||0),0))}</td>
+            <td className="px-2 py-2 text-right font-mono font-bold text-blue-700 text-base">{fmt(rows.reduce((s,r)=>s+(+r.quantity)*(+r.unit_price),0))}</td>
             {hasTax&&<td></td>}
-            {hasTax&&<td className="px-3 py-2 text-right font-mono font-bold text-orange-600">{fmt(tax)}</td>}
+            {hasTax&&<td className="px-2 py-2 text-right font-mono font-bold text-orange-600">{fmt(tax)}</td>}
             <td></td>
           </tr>
           {hasTax&&<tr>
-            <td colSpan={8} className="px-3 py-2 text-right font-bold text-blue-700">Tổng TT: <span
+            <td colSpan={6} className="px-3 py-2 text-right font-bold text-blue-700">Tổng Thanh Toán: <span
               className="font-mono text-base ml-2">
               {fmt(rows.reduce((s,r)=>s+(+r.quantity)*(+r.unit_price)+(+r.chi_phi_phan_bo||0),0)
                 +rows.reduce((s,r)=>s+(+r.quantity)*(+r.unit_price)*((+r.tax_rate||0)/100),0))}
@@ -689,7 +724,57 @@ const WarehouseReceiptPage=()=>{
   setDetailLoading(false)
 }
 
-  // ── Helpers ──
+  const openEdit=(d)=>{
+    setEditForm({
+      SoCT: d.SoCT||'',
+      NgayCT: String(d.NgayCT||today()).slice(0,10),
+      MaKyKeToan: d.MaKyKeToan||kyDefault,
+      MaNCC: d.MaNCC||'',
+      NguoiGD: d.NguoiGD||'',
+      DienGiai: d.DienGiai||'',
+      SoHD: d.SoHD||'',
+      NgayHD: String(d.NgayHD||today()).slice(0,10),
+      HinhThucTT: d.HinhThucTT||'Tiền mặt'
+    })
+    setEditRows(
+      d.items&&d.items.length>0
+        ?d.items.map(i=>({
+            product_id:i.product_id,
+            quantity:i.quantity||1,
+            unit_price:i.unit_price||0,
+            chi_phi_phan_bo:i.chi_phi_phan_bo||0,
+            tax_rate:i.tax_rate||0
+          }))
+        :[{product_id:'',quantity:1,unit_price:0,chi_phi_phan_bo:0,tax_rate:0}]
+    )
+    setEditModal(true)
+  }
+
+  const saveEdit=async()=>{
+    if(!editForm.MaNCC){showAlert('Vui lòng chọn Nhà Cung Cấp!','danger');return}
+    const validEditRows=editRows.filter(r=>r.product_id&&+r.quantity>0)
+    if(!validEditRows.length){showAlert('Vui lòng thêm ít nhất 1 dòng hàng hóa!','danger');return}
+    setEditLoading(true)
+    const body={
+      SoCT:editForm.SoCT, NgayCT:editForm.NgayCT,
+      MaNCC:+editForm.MaNCC, MaKyKeToan:+editForm.MaKyKeToan,
+      NguoiGD:editForm.NguoiGD, DienGiai:editForm.DienGiai,
+      SoHD:editForm.SoHD, NgayHD:editForm.NgayHD,
+      HinhThucTT:editForm.HinhThucTT,
+      DanhSachHang:validEditRows.map(r=>({
+        MaHH:+r.product_id, SoLuong:+r.quantity,
+        DonGia:+r.unit_price, ChiPhiPhanBo:+r.chi_phi_phan_bo||0, GhiChu:''
+      }))
+    }
+    const r=await api('PUT',`/documents/phieu-nhap-mua/${detail.id}`,body)
+    setEditLoading(false)
+    if(r&&!r.__error){
+      showAlert('Cập nhật phiếu nhập mua thành công!')
+      setEditModal(false); setDetailModal(false); setDetail(null); load()
+    } else showAlert('Lỗi: '+(r?.message||'Cập nhật thất bại'),'danger')
+  }
+
+  // Helper tên NCC
   const getNCCLabel=(id)=>{
     if(!id) return '-'
     const s=suppliers.find(x=>String(x.id)===String(id))
@@ -752,6 +837,8 @@ const WarehouseReceiptPage=()=>{
   }
 
   const items=detail?.items||[]
+  console.log('PNK items:', JSON.stringify(items))
+  console.log('hasCPMH:', items.some(i=>+i.chi_phi_phan_bo>0))
   const totalItems=items.reduce((s,i)=>s+(i.total||(+i.quantity * +i.unit_price)||0),0)
 
   return(
@@ -827,6 +914,8 @@ const WarehouseReceiptPage=()=>{
                     <th className="px-3 py-2 text-left text-xs font-bold text-blue-700 w-20">Kho</th>
                     <th className="px-3 py-2 text-right text-xs font-bold text-blue-700 w-16">SL</th>
                     <th className="px-3 py-2 text-right text-xs font-bold text-blue-700 w-28">Đơn Giá</th>
+                    {items.some(i=>+i.chi_phi_phan_bo>0)&&
+                      <th className="px-3 py-2 text-right text-xs font-bold text-orange-500 w-24">CPMH</th>}
                     <th className="px-3 py-2 text-right text-xs font-bold text-blue-700 w-28">Thành Tiền</th>
                   </tr>
                 </thead>
@@ -848,19 +937,23 @@ const WarehouseReceiptPage=()=>{
                       <td className="px-3 py-2.5 text-right font-mono text-sm">
                         {fmtN(item.unit_price)}
                       </td>
+                      {items.some(i=>+i.chi_phi_phan_bo>0)&&
+                        <td className="px-3 py-2.5 text-right font-mono text-sm text-orange-500">
+                          {fmtN(item.chi_phi_phan_bo||0)}
+                        </td>}
                       <td className="px-3 py-2.5 text-right font-mono text-sm font-bold text-blue-700">
-                        {fmtN(item.total||(+item.quantity * +item.unit_price))}
+                        {fmtN(item.total||(+item.quantity * +item.unit_price)+(+item.chi_phi_phan_bo||0))}
                       </td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot className="bg-blue-50 border-t-2 border-blue-200">
                   <tr>
-                    <td colSpan={5} className="px-3 py-3 font-bold text-right text-sm text-blue-800">
+                    <td colSpan={items.some(i=>+i.chi_phi_phan_bo>0)?6:5} className="px-3 py-3 font-bold text-right text-sm text-blue-800">
                       Tổng Thanh Toán:
                     </td>
                     <td className="px-3 py-3 text-right font-bold font-mono text-blue-700 text-base">
-                      {fmt(totalItems||detail.TongTien||detail.tong_tien||0)}
+                      {fmt(items.reduce((s,i)=>s+(i.total||(+i.quantity * +i.unit_price)+(+i.chi_phi_phan_bo||0)),0)||detail.TongTien||detail.tong_tien||0)}
                     </td>
                   </tr>
                 </tfoot>
@@ -906,7 +999,7 @@ const WarehouseReceiptPage=()=>{
           )}>⬇ Excel</Btn>
         </div>
       </CH>
-      <p className="px-4 py-1.5 text-xs text-blue-600 bg-blue-50 border-b border-blue-100">
+      <p className="px-4 py-1.5 text-xs text-red-600 bg-blue-50 border-b border-blue-100">
         💡 Click vào Số Phiếu để xem chi tiết
       </p>
       <Tbl data={data} loading={loading} empty="Chưa có phiếu nhập kho" cols={[
@@ -1235,6 +1328,12 @@ const WarehouseIssuePage=()=>{
                   <strong>{detail.dien_giai}</strong>
                 </div>
               )}
+              {detail.updated_from_pnm_at&&(
+              <div className="flex gap-2 col-span-2">
+                <span className="text-gray-500 w-32 flex-shrink-0">Cập nhật từ PNM:</span>
+                <strong className="text-orange-600 text-xs">{detail.updated_from_pnm_at.slice(0,16).replace('T',' ')}</strong>
+              </div>
+            )}
               <div className="flex gap-2">
                 <span className="text-gray-500 w-32 flex-shrink-0">Tổng SL:</span>
                 <strong>{fmtN(detail.tong_so_luong||0)}</strong>
@@ -1338,7 +1437,7 @@ const WarehouseIssuePage=()=>{
           )}>⬇ Excel</Btn>
         </div>
       </CH>
-      <p className="px-4 py-1.5 text-xs text-blue-600 bg-blue-50 border-b border-blue-100">
+      <p className="px-4 py-1.5 text-xs text-red-600 bg-blue-50 border-b border-blue-100">
         💡 Click vào Số Phiếu để xem chi tiết
       </p>
       <Tbl data={data} loading={loading} empty="Chưa có phiếu xuất kho" cols={[
@@ -1811,7 +1910,7 @@ const PayrollPageFixed=()=>{
               <thead className="bg-gray-50 border-b-2 border-gray-200">
                 <tr>
                   <th className="px-3 py-2 text-left text-xs font-bold uppercase w-24">Mã NV</th>
-                  <th className="px-3 py-2 text-left text-xs font-bold uppercase">Tên NV</th>
+                  <th className="px-3 py-2 text-left text-xs font-bold uppercase">Tên Nhân Viên</th>
                   <th className="px-3 py-2 text-right text-xs font-bold uppercase w-32">Lương CB</th>
                   <th className="px-3 py-2 text-right text-xs font-bold uppercase w-28">Phụ Cấp</th>
                   <th className="px-3 py-2 text-right text-xs font-bold uppercase w-28">Thưởng</th>
@@ -1826,7 +1925,7 @@ const PayrollPageFixed=()=>{
                 {rowsCalc.map((r,i)=>(
                   <tr key={i} className="hover:bg-gray-50">
                     <td className="px-3 py-2"><Code v={r.ma_nv}/></td>
-                    <td className="px-3 py-2 font-medium">{r.ten_nv}</td>
+                    <td className="px-4 py-2 font-medium ">{r.ten_nv}</td>
                     <td className="px-2 py-1.5">
                       <input type="number" value={r.luong_co_ban}
                         onChange={e=>upd(i,'luong_co_ban',e.target.value)}
@@ -1897,7 +1996,6 @@ const PayrollPageFixed=()=>{
         </div>
         <div className="flex gap-3">
           <Btn v="outline" onClick={()=>setTab('list')}>Hủy</Btn>
-          <Btn v="excel" onClick={doExcelBangLuong}>⬇ Xuất Excel</Btn>
           <Btn v="success" onClick={save}>💾 Lưu Chứng Từ Lương</Btn>
         </div>
       </div>
@@ -2544,6 +2642,7 @@ const Receipts=()=>{
     {/* Edit Modal */}
     {editModal&&editForm&&<Modal open={editModal} onClose={()=>setEditModal(false)}
       title={`✏️ Sửa Phiếu Thu - ${editForm.SoCT}`} size="lg">
+        {alert&&<Alert msg={alert.msg} type={alert.type} onClose={closeAlert}/>}
       <div className="grid grid-cols-3 gap-3">
         <Inp label="Số CT" value={editForm.SoCT} disabled hint="Không thể sửa số CT"/>
         <Inp label="Ngày CT" req type="date" value={editForm.NgayCT} onChange={sef('NgayCT')}/>
@@ -2579,7 +2678,7 @@ const Receipts=()=>{
               )}>⬇ Excel</Btn>
             </div>
           </CH>
-      <p className="px-4 py-1.5 text-xs text-blue-600 bg-blue-50 border-b border-blue-100">💡 Click vào Số CT để xem chi tiết</p>
+      <p className="px-4 py-1.5 text-xs text-red-600 bg-blue-50 border-b border-blue-100">💡 Click vào Số CT để xem chi tiết</p>
       <Tbl data={data} loading={loading} empty="Chưa có phiếu thu" cols={[
         {k:'SoCT',l:'Số Phiếu',w:'130px',fn:(v,r)=>(
           <button onClick={()=>openDetail(r)} className="text-blue-600 hover:underline font-mono text-xs font-semibold">{v||'-'}</button>
@@ -2742,6 +2841,7 @@ const Payments=()=>{
 
     {editModal&&editForm&&<Modal open={editModal} onClose={()=>setEditModal(false)}
       title={`✏️ Sửa Phiếu Chi - ${editForm.SoCT}`} size="lg">
+        {alert&&<Alert msg={alert.msg} type={alert.type} onClose={closeAlert}/>}
       <div className="grid grid-cols-3 gap-3">
         <Inp label="Số CT" value={editForm.SoCT} disabled hint="Không thể sửa số CT"/>
         <Inp label="Ngày CT" req type="date" value={editForm.NgayCT} onChange={sef('NgayCT')}/>
@@ -2777,7 +2877,7 @@ const Payments=()=>{
             )}>⬇ Excel</Btn>
           </div>
         </CH>
-      <p className="px-4 py-1.5 text-xs text-blue-600 bg-blue-50 border-b border-blue-100">💡 Click vào Số CT để xem chi tiết</p>
+      <p className="px-4 py-1.5 text-xs text-red-600 bg-blue-50 border-b border-blue-100">💡 Click vào Số CT để xem chi tiết</p>
       <Tbl data={data} loading={loading} empty="Chưa có phiếu chi" cols={[
         {k:'SoCT',l:'Số Phiếu',w:'130px',fn:(v,r)=>(
           <button onClick={()=>openDetail(r)} className="text-blue-600 hover:underline font-mono text-xs font-semibold">{v||'-'}</button>
@@ -2808,9 +2908,9 @@ const Payments=()=>{
           options={loaiGDChi.map(x=>({value:x.value||x.name,label:x.label||x.name}))}/>
         <div className="col-span-3"><Inp label="Diễn Giải" value={form.DienGiai} onChange={sf('DienGiai')}/></div>
       </div>
-      <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg flex justify-between items-center">
-        <span className="text-sm font-semibold text-red-800">Tổng Tiền Chi:</span>
-        <span className="text-xl font-bold text-red-700 font-mono">{fmt(form.TienChi)}</span>
+      <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg flex justify-between items-center">
+        <span className="text-sm font-semibold text-green-800">Tổng Tiền Chi:</span>
+        <span className="text-xl font-bold text-blue-700 font-mono">{fmt(form.TienChi)}</span>
       </div></CB>
       <CF><Btn v="outline" onClick={()=>setTab('list')}>Hủy</Btn><Btn onClick={save}>💾 Lưu</Btn></CF>
     </Card>}
@@ -2927,7 +3027,10 @@ const isBC=type==='nv-bc'
       loai_giao_dich: editForm.loai_giao_dich,
       noi_dung: editForm.noi_dung,
       period_id: +editForm.period_id,
-      ...(isTTG?{so_tien_thu:+editForm.so_tien_thu}:{so_tien_chi:+editForm.so_tien_chi})
+      ...(isTTG
+        ?{so_tien_thu:+editForm.so_tien_thu, khach_hang_id:editForm.khach_hang_id?+editForm.khach_hang_id:null}
+        :{so_tien_chi:+editForm.so_tien_chi, supplier_id:editForm.supplier_id?+editForm.supplier_id:null}
+      )
     }
     const r=await api('PUT',isTTG?`/banking/ttg/${detail.id}`:`/banking/ctg/${detail.id}`,body)
     setEditLoading(false)
@@ -2969,6 +3072,7 @@ const isBC=type==='nv-bc'
 
     {editModal&&editForm&&<Modal open={editModal} onClose={()=>setEditModal(false)}
       title={`✏️ Sửa ${isTTG?'TTG':'CTG'} - ${editForm.SoCT||editForm.so_chung_tu||''}`} size="lg">
+        {alert&&<Alert msg={alert.msg} type={alert.type} onClose={closeAlert}/>}
       <div className="grid grid-cols-3 gap-3">
         <Inp label="Số CT" value={editForm.SoCT} disabled hint="Không thể sửa số CT"
           className="bg-gray-100 cursor-not-allowed opacity-75"/>
@@ -3025,7 +3129,7 @@ const isBC=type==='nv-bc'
           )}>⬇ Excel</Btn>
         </div>
       </CH>
-      <p className="px-4 py-1.5 text-xs text-blue-600 bg-blue-50 border-b border-blue-100">💡 Click vào Số CT để xem chi tiết</p>
+      <p className="px-4 py-1.5 text-xs text-red-600 bg-blue-50 border-b border-blue-100">💡 Click vào Số CT để xem chi tiết</p>
       <Tbl data={data} loading={loading} empty={`Chưa có ${prefix}`} cols={[
         {k:'so_chung_tu',l:'Số CT',w:'150px',fn:(v,r)=>(
           <button onClick={()=>openDetail(r)} className="text-blue-600 hover:underline font-mono text-xs font-semibold">{v||'-'}</button>
@@ -3074,13 +3178,13 @@ const isBC=type==='nv-bc'
         </div>
         <div className="col-span-3"><Inp label="Nội Dung" value={form.noi_dung} onChange={sf('noi_dung')}/></div>
       </div>
-      <div className={`mt-3 p-3 rounded-lg border flex justify-between items-center ${isTTG?'bg-green-50 border-green-200':'bg-red-50 border-red-200'}`}>
-        <span className={`text-sm font-semibold ${isTTG?'text-green-800':'text-red-800'}`}>{isTTG?'Số Tiền Thu:':'Số Tiền Chi:'}</span>
-        <span className={`text-xl font-bold font-mono ${isTTG?'text-green-700':'text-red-700'}`}>{fmt(isTTG?form.so_tien_thu:form.so_tien_chi)}</span>
+      <div className={`mt-3 p-3 rounded-lg border flex justify-between items-center ${isTTG?'bg-green-50 border-green-200':'bg-green-50 border-green-200'}`}>
+        <span className={`text-sm font-semibold ${isTTG?'text-green-800':'text-green-800'}`}>{isTTG?'Số Tiền Thu:':'Số Tiền Chi:'}</span>
+        <span className={`text-xl font-bold font-mono ${isTTG?'text-green-700':'text-green-700'}`}>{fmt(isTTG?form.so_tien_thu:form.so_tien_chi)}</span>
       </div></CB>
       <CF>
         <Btn v="outline" onClick={()=>setTab('list')}>Hủy</Btn>
-        <Btn v={isTTG?'success':'danger'} onClick={save}>💾 Lưu</Btn>
+        <Btn v={isTTG?'success':'success'} onClick={save}>💾 Lưu</Btn>
       </CF>
     </Card>}
   </div>)
@@ -3099,7 +3203,10 @@ const PurchaseInvoice=()=>{
   const [detailLoading,setDetailLoading]=useState(false)
   const [editModal,setEditModal]=useState(false)
   const [editForm,setEditForm]=useState(null)
+  const [editRows,setEditRows]=useState([])
   const [editLoading,setEditLoading]=useState(false)
+  const [editPhanBoMethod,setEditPhanBoMethod]=useState('sl')
+  const [editCpmhDonGia,setEditCpmhDonGia]=useState(0)
   const sef=k=>e=>setEditForm(f=>({...f,[k]:e.target.value}))
 
   const makeNewSoCT=(list)=>{
@@ -3187,28 +3294,78 @@ const PurchaseInvoice=()=>{
       NgayHD: String(d.NgayHD||today()).slice(0,10),
       HinhThucTT: d.HinhThucTT||'Tiền mặt'
     })
+    const eRows=d.items&&d.items.length>0
+      ?d.items.map(i=>({
+          product_id:i.product_id,
+          quantity:i.quantity||1,
+          unit_price:i.unit_price||0,
+          chi_phi_phan_bo:i.chi_phi_phan_bo||0,
+          tax_rate:0
+        }))
+      :[{product_id:'',quantity:1,unit_price:0,chi_phi_phan_bo:0,tax_rate:0}]
+    setEditRows(eRows)
+    // Pre-fill tổng CPMH từ phiếu cũ
+    const tongCPMH=eRows.reduce((s,r)=>s+(+r.chi_phi_phan_bo||0),0)
+    setEditCpmhDonGia(tongCPMH)
+    setEditPhanBoMethod('sl')
     setEditModal(true)
   }
 
   const saveEdit=async()=>{
+    if(!editForm.NgayCT){showAlert('Vui lòng chọn Ngày CT!','danger');return}
+    if(!editForm.MaKyKeToan){showAlert('Vui lòng chọn Kỳ Kế Toán!','danger');return}
     if(!editForm.MaNCC){showAlert('Vui lòng chọn Nhà Cung Cấp!','danger');return}
+    const validEditRows=editRows.filter(r=>r.product_id&&+r.quantity>0)
+    if(!validEditRows.length){showAlert('Vui lòng thêm ít nhất 1 dòng hàng hóa!','danger');return}
     setEditLoading(true)
     const body={
       SoCT: editForm.SoCT,
       NgayCT: editForm.NgayCT,
       MaNCC: +editForm.MaNCC,
       MaKyKeToan: +editForm.MaKyKeToan,
-      NguoiGD: editForm.NguoiGD,
-      DienGiai: editForm.DienGiai,
-      SoHD: editForm.SoHD,
-      NgayHD: editForm.NgayHD,
-      HinhThucTT: editForm.HinhThucTT,
-      DanhSachHang: detail.items?.map(i=>({MaHH:i.product_id,SoLuong:i.quantity,DonGia:i.unit_price,GhiChu:''})) || []
+      NguoiGD: editForm.NguoiGD||null,
+      DienGiai: editForm.DienGiai||null,
+      SoHD: editForm.SoHD||null,
+      NgayHD: editForm.NgayHD||null,
+      HinhThucTT: editForm.HinhThucTT||null,
+      DanhSachHang: editRows.filter(r=>r.product_id&&+r.quantity>0).map(r=>({
+        MaHH:+r.product_id,
+        SoLuong:+r.quantity,
+        DonGia:+r.unit_price,
+        ChiPhiPhanBo:+r.chi_phi_phan_bo||0,
+        GhiChu:''
+      }))
     }
     const r=await api('PUT',`/documents/phieu-nhap-mua/${detail.id}`,body)
     setEditLoading(false)
     if(r&&!r.__error){
-      showAlert('Cập nhật phiếu nhập mua thành công!')
+      // ✅ Tìm và cập nhật PNK liên kết theo pnm_id
+      const pnkData=await api('GET','/documents/phieu-nhap-kho')
+      const pnkList=Array.isArray(pnkData)?pnkData:[]
+      const linkedPNK=pnkList.find(p=>p.pnm_id===detail.id)
+      console.log('detail.id:', detail.id, 'pnkList pnm_ids:', pnkList.map(p=>({id:p.id, pnm_id:p.pnm_id})))
+      console.log('linkedPNK:', linkedPNK)
+      if(linkedPNK){
+        const pnkBody={
+          so_phieu_nhap: linkedPNK.so_phieu_nhap,
+          ngay_phieu_nhap: editForm.NgayCT,
+          loai_phieu_nhap: linkedPNK.loai_phieu_nhap||'Nhập mua',
+          nha_cung_cap_id: +editForm.MaNCC,
+          nguoi_giao_dich: editForm.NguoiGD||null,
+          dien_giai: linkedPNK.dien_giai||`Nhập kho cho ${editForm.SoCT}`,
+          ky_ke_toan_id: +editForm.MaKyKeToan,
+          pnm_id: detail.id,
+          items: validEditRows.map(r=>({
+            product_id: +r.product_id,
+            warehouse_id: linkedPNK.items?.[0]?.warehouse_id||1,
+            quantity: +r.quantity,
+            unit_price: +r.unit_price,
+            chi_phi_phan_bo: +r.chi_phi_phan_bo||0
+          }))
+        }
+        await api('PUT',`/documents/phieu-nhap-kho/${linkedPNK.id}`,pnkBody)
+      }
+      showAlert('Cập nhật PNM thành công!'+(linkedPNK?' Đã cập nhật PNK liên kết.':''))
       setEditModal(false); setDetailModal(false); setDetail(null); load()
     } else showAlert('Lỗi: '+(r?.message||'Cập nhật thất bại'),'danger')
   }
@@ -3220,18 +3377,23 @@ const PurchaseInvoice=()=>{
   }
 
   const save=async()=>{
-    if(!form.SoCT||!form.MaNCC){
-      showAlert('Vui lòng điền: Số CT và Nhà Cung Cấp!','danger'); return
-    }
+    console.log('rows khi save:', JSON.stringify(rows.map(r=>({pid:r.product_id,qty:r.quantity,cpb:r.chi_phi_phan_bo}))))
+    if(!form.SoCT){showAlert('Vui lòng điền Số CT!','danger');return}
+    if(!form.SoCT){showAlert('Vui lòng điền Số CT!','danger');return}
+    if(!form.NgayCT){showAlert('Vui lòng chọn Ngày CT!','danger');return}
+    if(!form.MaKyKeToan){showAlert('Vui lòng chọn Kỳ Kế Toán!','danger');return}
+    if(!form.MaNCC){showAlert('Vui lòng chọn Nhà Cung Cấp!','danger');return}
     const validRows=rows.filter(r=>r.product_id&&+r.quantity>0)
     if(!validRows.length){
       showAlert('Vui lòng thêm ít nhất 1 dòng hàng hóa!','danger'); return
     }
     const body={
-      NgayCT:form.NgayCT,SoCT:form.SoCT,MaNCC:+form.MaNCC,
-      SoHD:form.SoHD,NgayHD:form.NgayHD,NguoiGD:form.NguoiGD,
-      DienGiai:form.DienGiai,MaKyKeToan:+form.MaKyKeToan,HinhThucTT:form.HinhThucTT,
-      DanhSachHang:validRows.map(r=>({MaHH:+r.product_id,SoLuong:+r.quantity,DonGia:+r.unit_price,GhiChu:''}))
+      NgayCT:form.NgayCT, SoCT:form.SoCT, MaNCC:+form.MaNCC,
+      MaKyKeToan:+form.MaKyKeToan,
+      SoHD:form.SoHD||null, NgayHD:form.NgayHD||null,
+      NguoiGD:form.NguoiGD||null, DienGiai:form.DienGiai||null,
+      HinhThucTT:form.HinhThucTT||null,
+      DanhSachHang:validRows.map(r=>({MaHH:+r.product_id,SoLuong:+r.quantity,DonGia:+r.unit_price,GhiChu:'',ChiPhiPhanBo:+r.chi_phi_phan_bo||0}))
     }
     const r=await api('POST','/documents/phieu-nhap-mua',body)
     if(r&&!r.__error){
@@ -3240,7 +3402,8 @@ const PurchaseInvoice=()=>{
         product_id:+row.product_id,
         warehouse_id:+row.warehouse_id||1,
         quantity:+row.quantity,
-        unit_price:+row.unit_price
+        unit_price:+row.unit_price,
+        chi_phi_phan_bo:+row.chi_phi_phan_bo||0
       }))
       // Thêm dòng CPMH nếu có
       if(useCPMH&&+cpmhDonGia>0){
@@ -3258,12 +3421,15 @@ const PurchaseInvoice=()=>{
         ngay_phieu_nhap: form.NgayCT,
         loai_phieu_nhap: 'Nhập mua',
         nha_cung_cap_id: +form.MaNCC,
-        nguoi_giao_dich: form.NguoiGD,
+        nguoi_giao_dich: form.NguoiGD||null,
         dien_giai: `Nhập kho cho ${form.SoCT}`,
         ky_ke_toan_id: +form.MaKyKeToan,
+        pnm_id: r.id,                         // ✅ THÊM — id của PNM vừa tạo
         items: pnkItems.filter(i=>i.product_id)
       }
+      console.log('pnkBody items:', JSON.stringify(pnkBody.items))
       const pnkRes=await api('POST','/documents/phieu-nhap-kho',pnkBody)
+      
       if(pnkRes&&!pnkRes.__error)
         showAlert(`Tạo PNM ${form.SoCT} thành công! Đã tạo PNK ${form.SoPNK} liên kết.`)
       else
@@ -3301,7 +3467,8 @@ const PurchaseInvoice=()=>{
       onEdit={detail?()=>openEdit(detail):null}/>      
     {editModal&&editForm&&<Modal open={editModal} onClose={()=>setEditModal(false)}
       title={`✏️ Sửa Phiếu Nhập Mua - ${editForm.SoCT}`} size="lg">
-      <div className="grid grid-cols-3 gap-3">
+      {alert&&<Alert msg={alert.msg} type={alert.type} onClose={closeAlert}/>}
+      <div className="grid grid-cols-3 gap-3 mb-4">
         <Inp label="Số CT" value={editForm.SoCT} disabled hint="Không thể sửa số CT"/>
         <Inp label="Ngày CT" req type="date" value={editForm.NgayCT} onChange={sef('NgayCT')}/>
         <Sel label="Kỳ Kế Toán" req value={editForm.MaKyKeToan} onChange={sef('MaKyKeToan')} options={kyOptions}/>
@@ -3318,9 +3485,62 @@ const PurchaseInvoice=()=>{
           <Inp label="Diễn Giải" value={editForm.DienGiai} onChange={sef('DienGiai')}/>
         </div>
       </div>
-      <p className="text-xs text-gray-500 mt-3 bg-yellow-50 p-2 rounded">
-        ⚠️ Chỉnh sửa thông tin header. Danh sách hàng hóa giữ nguyên từ phiếu gốc.
-      </p>
+      {/* Thanh phân bổ CPMH */}
+      <div className="flex items-center gap-3 p-3 bg-orange-50 border border-orange-200 rounded-lg mb-3">
+        <div>
+          <p className="text-xs text-gray-500 mb-1">Phương thức phân bổ</p>
+          <select value={editPhanBoMethod} onChange={e=>setEditPhanBoMethod(e.target.value)}
+            className="px-3 py-1.5 border border-orange-300 rounded text-sm bg-white">
+            <option value="sl">Tỷ lệ % theo số lượng</option>
+            <option value="gt">Tỷ lệ % theo giá trị</option>
+            <option value="pct">Tự nhập %</option>
+            <option value="val">Tự nhập giá trị</option>
+          </select>
+        </div>
+        <div>
+          <p className="text-xs text-gray-500 mb-1">Tổng CPMH</p>
+          <input type="number" value={editCpmhDonGia}
+            onChange={e=>setEditCpmhDonGia(+e.target.value)}
+            className="w-32 px-2 py-1.5 border border-orange-300 rounded text-sm text-right font-mono"/>
+        </div>
+        <button onClick={()=>{
+          const validR=editRows.filter(r=>r.product_id&&+r.quantity>0)
+          if(!validR.length){showAlert('Chưa có hàng hóa!','warning');return}
+          if(!+editCpmhDonGia){showAlert('Vui lòng nhập Tổng CPMH!','warning');return}
+          const cp=+editCpmhDonGia
+          const tongSL=validR.reduce((s,r)=>s+(+r.quantity),0)
+          const tongGT=validR.reduce((s,r)=>s+(+r.quantity)*(+r.unit_price),0)
+          setEditRows(rs=>rs.map(r=>{
+            if(!r.product_id||!+r.quantity) return r
+            let pb=0
+            if(editPhanBoMethod==='sl') pb=tongSL?Math.round(cp*(+r.quantity/tongSL)):0
+            else if(editPhanBoMethod==='gt'){
+              const gt=(+r.quantity)*(+r.unit_price)
+              pb=tongGT?Math.round(cp*(gt/tongGT)):0
+            }
+            return {...r,chi_phi_phan_bo:pb}
+          }))
+          showAlert('✅ Đã phân bổ lại CPMH!')
+        }}
+          className="mt-5 px-4 py-1.5 bg-orange-500 text-white text-sm font-semibold rounded hover:bg-orange-600 whitespace-nowrap">
+          ⚡ Phân Bổ Lại
+        </button>
+        <div className="ml-auto text-right">
+          <p className="text-xs text-gray-500">Tổng đã phân bổ</p>
+          <p className="font-mono font-bold text-orange-700">
+            {fmtN(editRows.reduce((s,r)=>s+(+r.chi_phi_phan_bo||0),0))}
+          </p>
+        </div>
+      </div>
+
+      <p className="text-xs font-bold text-gray-600 mb-2">📦 Danh Sách Hàng Hóa:</p>
+      <DetailTbl rows={editRows} setRows={setEditRows} products={products} color="blue" hasTax={true}/>
+      <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg flex justify-between items-center">
+        <span className="text-sm font-bold text-blue-800">Tổng Thanh Toán:</span>
+        <span className="text-lg font-bold text-blue-700 font-mono">
+          {fmt(editRows.reduce((s,r)=>s+(+r.quantity)*(+r.unit_price)+(+r.chi_phi_phan_bo||0),0))}
+        </span>
+      </div>
       <div className="flex justify-end gap-2 mt-4">
         <Btn v="outline" onClick={()=>setEditModal(false)}>Hủy</Btn>
         <Btn v="success" onClick={saveEdit} disabled={editLoading}>
@@ -3356,7 +3576,7 @@ const PurchaseInvoice=()=>{
           )}>⬇ Excel</Btn>
         </div>
       </CH>
-      <p className="px-4 py-1.5 text-xs text-blue-600 bg-blue-50 border-b border-blue-100">
+      <p className="px-4 py-1.5 text-xs text-red-600 bg-blue-50 border-b border-blue-100">
         💡 Click vào Số CT để xem chi tiết phiếu
       </p>
       <Tbl data={data} loading={loading} empty="Chưa có phiếu nhập mua" cols={[
@@ -3582,10 +3802,10 @@ const PurchaseInvoice=()=>{
           }
         </div>}
 
-        <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+        <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
           <div className="flex justify-between items-center mb-1">
-            <span className="text-sm text-blue-700">Tiền Hàng:</span>
-            <span className="font-mono text-blue-700">{fmt(totalHH)}</span>
+            <span className="text-sm text-green-700">Tiền Hàng:</span>
+            <span className="font-mono text-green-700">{fmt(totalHH)}</span>
           </div>
           <div className="flex justify-between items-center mb-1">
             <span className="text-sm text-orange-600">Tiền Thuế:</span>
@@ -3596,8 +3816,8 @@ const PurchaseInvoice=()=>{
             <span className="font-mono text-orange-600">{fmt(totalCPMH)}</span>
           </div>}
           <div className="flex justify-between items-center mt-2 pt-2 border-t border-blue-200">
-            <span className="text-sm font-bold text-blue-800">Tổng Thanh Toán:</span>
-            <span className="text-xl font-bold text-blue-700 font-mono">{fmt(total)}</span>
+            <span className="text-sm font-bold text-green-800">Tổng Thanh Toán:</span>
+            <span className="text-xl font-bold text-green-700 font-mono">{fmt(total)}</span>
           </div>
         </div>
       </CB>
@@ -3787,7 +4007,7 @@ const SalesOrder=()=>{
           )}>⬇ Excel</Btn>
         </div>
       </CH>
-      <p className="px-4 py-1.5 text-xs text-blue-600 bg-blue-50 border-b border-blue-100">
+      <p className="px-4 py-1.5 text-xs text-red-600 bg-blue-50 border-b border-blue-100">
         💡 Click vào Số CT để xem chi tiết phiếu
       </p>
       <Tbl data={data} loading={loading} empty="Chưa có phiếu bán hàng" cols={[
@@ -4052,6 +4272,9 @@ const DetailModal=({open,onClose,title,detail,loading,products=[],customers=[],s
                         <td className="px-3 py-2.5 font-medium">{getProductName(item.product_id||item.MaHH)}</td>
                         <td className="px-3 py-2.5 text-right font-mono">{fmtN(item.quantity||item.SoLuong||0)}</td>
                         <td className="px-3 py-2.5 text-right font-mono">{fmtN(item.unit_price||item.DonGia||0)}</td>
+                        <td className="px-3 py-2.5 text-right font-mono text-orange-500">
+                          {fmtN(item.chi_phi_phan_bo||0)}
+                        </td>
                         <td className="px-3 py-2.5 text-right font-mono font-bold text-blue-700">
                           {fmtN(item.total||(+(item.quantity||item.SoLuong||0))*(+(item.unit_price||item.DonGia||0)))}
                         </td>
@@ -4203,7 +4426,7 @@ const RetailOrder=()=>{
             )}>⬇ Excel</Btn>
           </div>
         </CH>
-      <p className="px-4 py-1.5 text-xs text-blue-600 bg-blue-50 border-b border-blue-100">💡 Click vào Số CT để xem chi tiết</p>
+      <p className="px-4 py-1.5 text-xs text-red-600 bg-blue-50 border-b border-blue-100">💡 Click vào Số CT để xem chi tiết</p>
       <Tbl data={data} loading={loading} empty="Chưa có phiếu bán lẻ" cols={[
         {k:'SoCT',l:'Số CT',w:'150px',fn:(v,r)=>(
           <button onClick={()=>openDetail(r)} className="text-blue-600 hover:underline font-mono text-xs font-semibold">{v||'-'}</button>
@@ -5189,6 +5412,7 @@ const UnitPage = () => {
 // ══ MAIN APP (UPDATED ROUTING)
 const App=()=>{
   const [page,setPage]=useState('dashboard')
+  const [sidebarOpen,setSidebarOpen]=useState(true)
   const render=()=>{
     switch(page){
       case 'dashboard': return <Dashboard onNav={setPage}/>
@@ -5276,12 +5500,15 @@ const App=()=>{
     }
   }
   return(<div className="min-h-screen bg-[#f0f2f5]">
-    <Sidebar page={page} onNav={setPage}/>
-    <Topbar page={page}/>
-    <main className="ml-[260px] mt-[52px] p-5 min-h-[calc(100vh-52px)]">
+    <Sidebar page={page} onNav={setPage} open={sidebarOpen}/>
+    <Topbar page={page} onNav={setPage} onToggleSidebar={()=>setSidebarOpen(o=>!o)} sidebarOpen={sidebarOpen}/>
+    <main className={`mt-[52px] p-5 min-h-[calc(100vh-52px)] transition-all duration-300 ${sidebarOpen?'ml-[260px]':'ml-0'}`}>
       <div key={page} style={{animation:'fadeIn 0.15s ease-out'}}>{render()}</div>
     </main>
-    <style>{`@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}`}</style>
+    <style>{`
+      @keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+      @keyframes slideDown{from{opacity:0;transform:translateX(-50%) translateY(-20px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+    `}</style>
   </div>)
 }
 export default App

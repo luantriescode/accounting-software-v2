@@ -28,6 +28,7 @@ def get_cost_items(db: Session = Depends(get_db)):
 # ============ PHIẾU NHẬP KHO ============
 @router.post("/documents/phieu-nhap-kho", response_model=PhieuNhapKhoResponse, status_code=201)
 def create_phieu_nhap_kho(data: PhieuNhapKhoCreate, db: Session = Depends(get_db)):
+    print(f"DEBUG create_phieu_nhap_kho items: {[(i.product_id, i.chi_phi_phan_bo) for i in data.items]}")
     # Kiểm tra số phiếu không trùng
     if db.query(WarehouseReceipt).filter(
         WarehouseReceipt.so_phieu_nhap == data.so_phieu_nhap,
@@ -49,8 +50,10 @@ def create_phieu_nhap_kho(data: PhieuNhapKhoCreate, db: Session = Depends(get_db
         nguoi_giao_dich=data.nguoi_giao_dich,
         dien_giai=data.dien_giai,
         period_id=data.ky_ke_toan_id,
-        tong_tien=tong_tien,
-        tong_so_luong=tong_so_luong,
+        pnm_id=data.pnm_id,
+        # Tính tổng — bao gồm CPMH
+        tong_so_luong = sum(item.quantity for item in data.items),
+        tong_tien = sum(item.quantity * item.unit_price + (item.chi_phi_phan_bo or 0) for item in data.items),
         trang_thai="DRAFT"
     )
     db.add(pnk)
@@ -64,6 +67,7 @@ def create_phieu_nhap_kho(data: PhieuNhapKhoCreate, db: Session = Depends(get_db
             warehouse_id=item.warehouse_id,
             quantity=item.quantity,
             unit_price=item.unit_price,
+            chi_phi_phan_bo=item.chi_phi_phan_bo or 0,
             current_stock=0
         )
         db.add(pnk_item)
@@ -90,9 +94,11 @@ def create_phieu_nhap_kho(data: PhieuNhapKhoCreate, db: Session = Depends(get_db
         so_phieu_nhap=pnk.so_phieu_nhap,
         ngay_phieu_nhap=pnk.ngay_phieu_nhap,
         nha_cung_cap_id=pnk.nha_cung_cap_id,
+        loai_phieu_nhap=pnk.loai_phieu_nhap,
         tong_so_luong=pnk.tong_so_luong,
         tong_tien=float(pnk.tong_tien),
-        trang_thai=pnk.trang_thai
+        trang_thai=pnk.trang_thai,
+        pnm_id=pnk.pnm_id
     )
 
 @router.get("/documents/phieu-nhap-kho", response_model=list[PhieuNhapKhoResponse])
@@ -104,11 +110,12 @@ def get_phieu_nhap_kho(db: Session = Depends(get_db)):
             so_phieu_nhap=p.so_phieu_nhap,
             ngay_phieu_nhap=p.ngay_phieu_nhap,
             nha_cung_cap_id=p.nha_cung_cap_id,
+            loai_phieu_nhap=p.loai_phieu_nhap or "",
             tong_so_luong=p.tong_so_luong,
             tong_tien=float(p.tong_tien or 0),
             trang_thai=p.trang_thai,
-            # THÊM loai_phieu_nhap vào response
-            loai_phieu_nhap=p.loai_phieu_nhap or ""
+            pnm_id=p.pnm_id,
+            updated_from_pnm_at=str(p.updated_from_pnm_at) if p.updated_from_pnm_at else None
         ) for p in pnks
     ]
 
@@ -151,16 +158,63 @@ def get_phieu_nhap_kho_detail(doc_id: int, db: Session = Depends(get_db)):
         "tong_so_luong": pnk.tong_so_luong or 0,
         "TrangThai": pnk.trang_thai or "DRAFT",
         "trang_thai": pnk.trang_thai or "DRAFT",
+        "pnm_id": pnk.pnm_id,
+        "updated_from_pnm_at": str(pnk.updated_from_pnm_at) if pnk.updated_from_pnm_at else None,
         "items": [
             {
                 "product_id": i.product_id,
                 "warehouse_id": i.warehouse_id,
                 "quantity": int(i.quantity),
                 "unit_price": float(i.unit_price),
-                "total": float(i.quantity * i.unit_price)
+                "chi_phi_phan_bo": float(i.chi_phi_phan_bo or 0),
+                "total": float(i.quantity * i.unit_price) + float(i.chi_phi_phan_bo or 0)
             } for i in items
         ]
     }
+@router.put("/documents/phieu-nhap-kho/{pnk_id}")
+def update_phieu_nhap_kho(pnk_id: int, data: PhieuNhapKhoCreate, db: Session = Depends(get_db)):
+    from datetime import datetime
+    pnk = db.query(WarehouseReceipt).filter(WarehouseReceipt.id == pnk_id).first()
+    if not pnk:
+        raise HTTPException(404, "Không tìm thấy PNK")
+
+    # Cập nhật header
+    pnk.ngay_phieu_nhap = data.ngay_phieu_nhap
+    pnk.loai_phieu_nhap = data.loai_phieu_nhap or pnk.loai_phieu_nhap
+    pnk.nha_cung_cap_id = data.nha_cung_cap_id
+    pnk.nguoi_giao_dich = data.nguoi_giao_dich
+    pnk.dien_giai = data.dien_giai
+    pnk.period_id = data.ky_ke_toan_id
+    if data.pnm_id:
+        pnk.updated_from_pnm_at = datetime.now()
+
+    # Xóa items cũ
+    db.query(WarehouseReceiptItem).filter(
+        WarehouseReceiptItem.receipt_id == pnk_id
+    ).delete()
+
+    # Insert items mới
+    tong_tien = 0
+    tong_so_luong = 0
+    for item in data.items:
+        tt = item.quantity * item.unit_price + (item.chi_phi_phan_bo or 0)
+        tong_tien += tt
+        tong_so_luong += item.quantity
+        pnk_item = WarehouseReceiptItem(
+            receipt_id=pnk_id,
+            product_id=item.product_id,
+            warehouse_id=item.warehouse_id,
+            quantity=item.quantity,
+            unit_price=item.unit_price,
+            chi_phi_phan_bo=item.chi_phi_phan_bo or 0,
+            current_stock=0
+        )
+        db.add(pnk_item)
+
+    pnk.tong_tien = tong_tien
+    pnk.tong_so_luong = tong_so_luong
+    db.commit()
+    return {"message": "Cập nhật PNK thành công", "id": pnk_id}
 
 # ============ PHIẾU XUẤT KHO ============
 @router.post("/documents/phieu-xuat-kho", response_model=PhieuXuatKhoResponse, status_code=201)

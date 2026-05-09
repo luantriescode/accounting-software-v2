@@ -178,6 +178,7 @@ def update_ttg(id: int, data: BankReceiptTransactionCreate, db: Session = Depend
     t.so_tien_thu = data.so_tien_thu
     t.noi_dung = data.noi_dung
     t.period_id = data.period_id
+    t.khach_hang_id = data.khach_hang_id    # ✅ THÊM
     db.commit()
     return {"message": "Cập nhật thành công", "id": id}
 
@@ -398,6 +399,7 @@ def update_ctg(id: int, data: BankPaymentTransactionCreate, db: Session = Depend
     t.so_tien_chi = data.so_tien_chi
     t.noi_dung = data.noi_dung
     t.period_id = data.period_id
+    t.supplier_id = data.supplier_id  
     db.commit()
     return {"message": "Cập nhật thành công", "id": id}
 

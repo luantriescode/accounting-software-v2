@@ -411,7 +411,7 @@ def update_bao_no(doc_id: int, data: BaoNoCreate, db: Session = Depends(get_db))
 
 @router.post("/documents/phieu-nhap-mua", response_model=PhieuNhapMuaResponse, status_code=201)
 def create_phieu_nhap_mua(data: PhieuNhapMuaCreate, db: Session = Depends(get_db)):
-    total_amount = sum(item.SoLuong * item.DonGia for item in data.DanhSachHang)
+    total_amount = sum(item.SoLuong * item.DonGia + (item.ChiPhiPhanBo or 0) for item in data.DanhSachHang)
 
     # Dùng json.dumps thay vì f-string để tránh lỗi
     meta = json.dumps({
@@ -441,6 +441,7 @@ def create_phieu_nhap_mua(data: PhieuNhapMuaCreate, db: Session = Depends(get_db
             product_id=item.MaHH,
             quantity=item.SoLuong,
             unit_price=item.DonGia,
+            chi_phi_phan_bo=item.ChiPhiPhanBo or 0,
             notes=item.GhiChu
         )
         db.add(poi)
@@ -496,30 +497,68 @@ def get_phieu_nhap_mua_detail(doc_id: int, db: Session = Depends(get_db)):
     except Exception:
         pass
     return {
-        "id": d.id, "SoCT": d.document_number,
+        "id": d.id,
+        "SoCT": d.document_number,
         "NgayCT": str(d.document_date),
-        "MaNCC": meta.get('supplier_id'), "SoHD": meta.get('so_hd'),
-        "DienGiai": meta.get('dien_giai'), "TongTien": float(d.total_amount or 0),
+        "MaNCC": meta.get('supplier_id'),
+        "SoHD": meta.get('so_hd'),
+        "NgayHD": meta.get('ngay_hd'),
+        "NguoiGD": meta.get('nguoi_gd'),
+        "HinhThucTT": meta.get('hinh_thuc_tt'),
+        "DienGiai": meta.get('dien_giai'),
+        "MaKyKeToan": d.period_id,
+        "TongTien": float(d.total_amount or 0),
         "TrangThai": d.status,
-        "items": [{"product_id": i.product_id, "quantity": i.quantity,
-                   "unit_price": float(i.unit_price),
-                   "total": float(i.quantity * i.unit_price)} for i in items]
+        "items": [{
+            "product_id": i.product_id,
+            "quantity": float(i.quantity),
+            "unit_price": float(i.unit_price),
+            "chi_phi_phan_bo": float(i.chi_phi_phan_bo or 0),
+            "total": float(i.quantity * i.unit_price) + float(i.chi_phi_phan_bo or 0)
+        } for i in items]
     }
 @router.put("/documents/phieu-nhap-mua/{doc_id}")
 def update_phieu_nhap_mua(doc_id: int, data: PhieuNhapMuaCreate, db: Session = Depends(get_db)):
-    p, d = db.query(PurchaseOrder, Document).join(
-        Document, PurchaseOrder.document_id == Document.id
-    ).filter(PurchaseOrder.id == doc_id).first() or (None, None)
-    if not p:
+    d = db.query(Document).filter(
+        Document.id == doc_id, Document.document_type == "PNM"
+    ).first()
+    if not d:
         raise HTTPException(404, "Không tìm thấy")
+
+    # Cập nhật header
+    meta = json.dumps({
+        "supplier_id": data.MaNCC,
+        "dien_giai": data.DienGiai or "",
+        "so_hd": data.SoHD or "",
+        "ngay_hd": str(data.NgayHD) if data.NgayHD else "",
+        "nguoi_gd": data.NguoiGD or "",
+        "hinh_thuc_tt": data.HinhThucTT or ""
+    })
     d.document_date = data.NgayCT
     d.period_id = data.MaKyKeToan
-    d.description = data.DienGiai
-    p.supplier_id = data.MaNCC
-    p.contact_person = data.NguoiGD
-    p.invoice_number = data.SoHD
-    p.invoice_date = data.NgayHD
-    p.payment_method = data.HinhThucTT
+    d.description = meta
+    d.total_amount = sum(
+        h.SoLuong * h.DonGia + (h.ChiPhiPhanBo or 0)
+        for h in data.DanhSachHang
+    )
+
+    # Xóa items cũ
+    db.query(PurchaseOrderItem).filter(
+        PurchaseOrderItem.purchase_order_id == doc_id
+    ).delete()
+
+    # Insert items mới
+    for item in data.DanhSachHang:
+        poi = PurchaseOrderItem(
+            purchase_order_id=doc_id,
+            product_id=item.MaHH,
+            quantity=item.SoLuong,
+            unit_price=item.DonGia,
+            chi_phi_phan_bo=item.ChiPhiPhanBo or 0,
+            notes=item.GhiChu
+        )
+        db.add(poi)
+
     db.commit()
     return {"message": "Cập nhật thành công", "id": doc_id}
 # ============ PHIẾU BÁN HÀNG ============

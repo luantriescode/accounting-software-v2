@@ -97,6 +97,7 @@ class PhieuNhapMuaItemCreate(BaseModel):
     SoLuong: int
     DonGia: float
     GhiChu: Optional[str] = None
+    ChiPhiPhanBo: float = 0
 
 class PhieuNhapMuaCreate(BaseModel):
     SoCT: str
@@ -109,6 +110,13 @@ class PhieuNhapMuaCreate(BaseModel):
     DienGiai: Optional[str] = None
     HinhThucTT: Optional[str] = None
     DanhSachHang: list[PhieuNhapMuaItemCreate]
+
+class PhieuNhapMuaItemResponse(BaseModel):
+    product_id: int
+    quantity: float
+    unit_price: float
+    chi_phi_phan_bo: float = 0
+    total: float
 
 class PhieuNhapMuaResponse(BaseModel):
     id: int

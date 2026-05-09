@@ -26,6 +26,7 @@ class WarehouseReceiptItemCreate(BaseModel):
     warehouse_id: int
     quantity: int
     unit_price: float
+    chi_phi_phan_bo: float = 0  
 
 class WarehouseReceiptItemResponse(BaseModel):
     id: int
@@ -33,8 +34,8 @@ class WarehouseReceiptItemResponse(BaseModel):
     warehouse_id: int
     quantity: int
     unit_price: float
+    chi_phi_phan_bo: float = 0
     total_amount: float
-
 
 # ============ WAREHOUSE RECEIPT COST ============
 class WarehouseReceiptCostCreate(BaseModel):
@@ -53,11 +54,13 @@ class WarehouseReceiptCostResponse(BaseModel):
 class PhieuNhapKhoCreate(BaseModel):
     so_phieu_nhap: str
     ngay_phieu_nhap: date
-    nha_cung_cap_id: int
+    nha_cung_cap_id: Optional[int] = None
+    loai_phieu_nhap: Optional[str] = None
     ky_ke_toan_id: int
     dia_chi: Optional[str] = None
     nguoi_giao_dich: Optional[str] = None
     dien_giai: Optional[str] = None
+    pnm_id: Optional[int] = None
     items: list[WarehouseReceiptItemCreate]
     costs: Optional[list[WarehouseReceiptCostCreate]] = None
 
@@ -66,9 +69,12 @@ class PhieuNhapKhoResponse(BaseModel):
     so_phieu_nhap: str
     ngay_phieu_nhap: date
     nha_cung_cap_id: Optional[int] = None
+    loai_phieu_nhap: Optional[str] = None
     tong_so_luong: int
     tong_tien: float
     trang_thai: str
+    pnm_id: Optional[int] = None
+    updated_from_pnm_at: Optional[str] = None
 
 
 # ============ WAREHOUSE ISSUE ITEM ============
@@ -126,12 +132,3 @@ class StockSummaryResponse(BaseModel):
     xuat_trong_ky_gia_tri: float
     ton_cuoi_ky_sl: int
     ton_cuoi_ky_gia_tri: float
-class PhieuNhapKhoResponse(BaseModel):
-    id: int
-    so_phieu_nhap: str
-    ngay_phieu_nhap: date
-    nha_cung_cap_id: Optional[int] = None
-    loai_phieu_nhap: Optional[str] = None   # ← THÊM DÒNG NÀY
-    tong_so_luong: int
-    tong_tien: float
-    trang_thai: str
