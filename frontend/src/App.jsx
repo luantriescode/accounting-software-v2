@@ -3845,7 +3845,13 @@ const SalesOrder=()=>{
   const [alert,showAlert,closeAlert]=useAlert()
   const [detail,setDetail]=useState(null)
   const [detailModal,setDetailModal]=useState(false)
+  // Thêm 10/05/2026
   const [detailLoading,setDetailLoading]=useState(false)
+  const [editModal,setEditModal]=useState(false)
+  const [editForm,setEditForm]=useState(null)
+  const [editRows,setEditRows]=useState([])
+  const [editLoading,setEditLoading]=useState(false)
+  const sef=k=>e=>setEditForm(f=>({...f,[k]:e.target.value}))
 
   const makeNewSoCT=(list)=>{
     const ym=new Date().toISOString().slice(0,7).replace('-','')
@@ -3891,6 +3897,72 @@ const SalesOrder=()=>{
     const r=await api('GET',`/documents/phieu-ban-hang/${row.id}`)
     setDetail(r&&!r.__error?r:{...row,items:[]})
     setDetailLoading(false)
+  }
+  // Thêm 10/05/2026
+  const openEdit=(d)=>{
+    setEditForm({
+      SoCT: d.SoCT||'',
+      NgayCT: String(d.NgayCT||today()).slice(0,10),
+      MaKyKeToan: d.MaKyKeToan||kyDefault,
+      MaKH: d.MaKH||d.customer_id||'',
+      NguoiGD: d.NguoiGD||'',
+      DienGiai: d.DienGiai||'',
+      SoHD: d.SoHD||'',
+      NgayHD: String(d.NgayHD||today()).slice(0,10),
+      HinhThucTT: d.HinhThucTT||'Tiền mặt',
+      KhoXuat: d.KhoXuat||''
+    })
+    setEditRows(d.items&&d.items.length>0
+      ?d.items.map(i=>({product_id:i.product_id||i.MaHH,quantity:i.quantity||i.SoLuong||1,unit_price:i.unit_price||i.DonGia||0,tax_rate:0}))
+      :[{product_id:'',quantity:1,unit_price:0,tax_rate:0}]
+    )
+    setEditModal(true)
+  }
+
+  const saveEdit=async()=>{
+    if(!editForm.NgayCT){showAlert('Vui lòng chọn Ngày CT!','danger');return}
+    if(!editForm.MaKyKeToan){showAlert('Vui lòng chọn Kỳ Kế Toán!','danger');return}
+    if(!editForm.MaKH){showAlert('Vui lòng chọn Khách Hàng!','danger');return}
+    const validEditRows=editRows.filter(r=>r.product_id&&+r.quantity>0)
+    if(!validEditRows.length){showAlert('Vui lòng thêm ít nhất 1 dòng hàng hóa!','danger');return}
+    setEditLoading(true)
+    const body={
+      SoCT:editForm.SoCT, NgayCT:editForm.NgayCT,
+      MaKH:+editForm.MaKH, MaKyKeToan:+editForm.MaKyKeToan,
+      NguoiGD:editForm.NguoiGD||null, DienGiai:editForm.DienGiai||null,
+      SoHD:editForm.SoHD||null, NgayHD:editForm.NgayHD||null,
+      HinhThucTT:editForm.HinhThucTT||null,
+      DanhSachHang:validEditRows.map(r=>({MaHH:+r.product_id,SoLuong:+r.quantity,DonGia:+r.unit_price,GhiChu:''}))
+    }
+    const r=await api('PUT',`/documents/phieu-ban-hang/${detail.id}`,body)
+    if(r&&!r.__error){
+      // ✅ Sync PXK liên kết
+      const pxkData=await api('GET','/documents/phieu-xuat-kho')
+      const pxkList=Array.isArray(pxkData)?pxkData:[]
+      const linkedPXK=pxkList.find(p=>String(p.pbh_id)===String(detail.id))
+      if(linkedPXK){
+        const pxkBody={
+          so_phieu_xuat: linkedPXK.so_phieu_xuat,
+          ngay_phieu_xuat: editForm.NgayCT,
+          loai_phieu_xuat: linkedPXK.loai_phieu_xuat||'Xuất bán',
+          khach_hang_id: +editForm.MaKH||null,
+          nguoi_giao_dich: editForm.NguoiGD||null,
+          dien_giai: linkedPXK.dien_giai||`Xuất kho cho ${editForm.SoCT}`,
+          ky_ke_toan_id: +editForm.MaKyKeToan,
+          pbh_id: detail.id,
+          items: validEditRows.map(row=>({
+            product_id:+row.product_id,
+            warehouse_id:linkedPXK.items?.[0]?.warehouse_id||+editForm.KhoXuat||1,
+            quantity:+row.quantity,
+            unit_price:+row.unit_price
+          }))
+        }
+        await api('PUT',`/documents/phieu-xuat-kho/${linkedPXK.id}`,pxkBody)
+      }
+      showAlert('Cập nhật PBH thành công!'+(linkedPXK?' Đã cập nhật PXK liên kết.':''))
+      setEditModal(false); setDetailModal(false); setDetail(null); load()
+    } else showAlert('Lỗi: '+(r?.message||'Cập nhật thất bại'),'danger')
+    setEditLoading(false)
   }
 
   // Khi chọn mẫu HĐ → tự điền KyHieuHD
@@ -3941,6 +4013,7 @@ const SalesOrder=()=>{
           khach_hang_id: form.MaKH?+form.MaKH:null,
           dien_giai: `Xuất kho cho ${form.SoCT}`,
           ky_ke_toan_id: +form.MaKyKeToan,
+          pbh_id: r.id,     // Thêm 10/05/2026
           items: validRows.map(r=>({
             product_id:+r.product_id,
             warehouse_id:+form.KhoXuat,
@@ -3970,15 +4043,45 @@ const SalesOrder=()=>{
     {alert&&<Alert msg={alert.msg} type={alert.type} onClose={closeAlert}/>}
 
     {/* Modal xem chi tiết */}
-    <DetailModal
-      open={detailModal}
-      onClose={()=>{setDetailModal(false);setDetail(null)}}
+    <DetailModal open={detailModal} onClose={()=>{setDetailModal(false);setDetail(null)}}
       title={`🏪 Chi Tiết Phiếu Bán Hàng - ${detail?.SoCT||''}`}
-      detail={detail}
-      loading={detailLoading}
-      products={products}
-      customers={customers}
-      suppliers={[]}/>
+      detail={detail} loading={detailLoading} products={products} customers={customers} suppliers={[]}
+      onEdit={detail?()=>openEdit(detail):null}/>
+
+    {editModal&&editForm&&<Modal open={editModal} onClose={()=>setEditModal(false)}
+      title={`✏️ Sửa Phiếu Bán Hàng - ${editForm.SoCT}`} size="lg">
+      <div className="grid grid-cols-3 gap-3 mb-4">
+        <Inp label="Số CT" value={editForm.SoCT} disabled hint="Không thể sửa số CT"/>
+        <Inp label="Ngày CT" req type="date" value={editForm.NgayCT} onChange={sef('NgayCT')}/>
+        <Sel label="Kỳ Kế Toán" req value={editForm.MaKyKeToan} onChange={sef('MaKyKeToan')} options={kyOptions}/>
+        <div className="col-span-2">
+          <Sel label="Khách Hàng" req value={editForm.MaKH} onChange={sef('MaKH')}
+            options={customers.map(c=>({value:c.id,label:`${c.TenKH||c.name} (${c.MaKH||c.code})`}))}/>
+        </div>
+        <Sel label="Hình Thức TT" value={editForm.HinhThucTT} onChange={sef('HinhThucTT')}
+          options={['Tiền mặt','Chuyển khoản','Thẻ']}/>
+        <Inp label="Số HĐ" value={editForm.SoHD} onChange={sef('SoHD')}/>
+        <Inp label="Ngày HĐ" type="date" value={editForm.NgayHD} onChange={sef('NgayHD')}/>
+        <Inp label="Người Giao Dịch" value={editForm.NguoiGD} onChange={sef('NguoiGD')}/>
+        <div className="col-span-3">
+          <Inp label="Diễn Giải" value={editForm.DienGiai} onChange={sef('DienGiai')}/>
+        </div>
+      </div>
+      <p className="text-xs font-bold text-gray-600 mb-2">📦 Danh Sách Hàng Hóa:</p>
+      <DetailTbl rows={editRows} setRows={setEditRows} products={products} color="green"/>
+      <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg flex justify-between items-center">
+        <span className="text-sm font-bold text-green-800">Tổng Thanh Toán:</span>
+        <span className="text-lg font-bold text-green-700 font-mono">
+          {fmt(editRows.reduce((s,r)=>s+(+r.quantity)*(+r.unit_price),0))}
+        </span>
+      </div>
+      <div className="flex justify-end gap-2 mt-4">
+        <Btn v="outline" onClick={()=>setEditModal(false)}>Hủy</Btn>
+        <Btn v="success" onClick={saveEdit} disabled={editLoading}>
+          {editLoading?'Đang lưu...':'💾 Lưu Thay Đổi'}
+        </Btn>
+      </div>
+    </Modal>}
 
     <Tabs tabs={[{id:'list',label:'📋 Danh Sách'},{id:'create',label:'+ Tạo Mới'}]}
       active={tab}

@@ -241,6 +241,7 @@ def create_phieu_xuat_kho(data: PhieuXuatKhoCreate, db: Session = Depends(get_db
         nguoi_giao_dich=data.nguoi_giao_dich,
         dien_giai=data.dien_giai,
         period_id=data.ky_ke_toan_id,
+        pbh_id=data.pbh_id,                         #✅ THÊM 10/05/2026
         tong_tien=tong_tien,
         tong_so_luong=tong_so_luong,
         trang_thai="DRAFT"
@@ -287,7 +288,8 @@ def get_phieu_xuat_kho(db: Session = Depends(get_db)):
             nguoi_giao_dich=p.nguoi_giao_dich or "", # ✅ THÊM
             tong_so_luong=p.tong_so_luong,
             tong_tien=float(p.tong_tien or 0),
-            trang_thai=p.trang_thai or "DRAFT"
+            trang_thai=p.trang_thai or "DRAFT",
+            pbh_id=p.pbh_id #✅ THÊM 10/05/2026
         ) for p in pxks
     ]
 
@@ -338,6 +340,46 @@ def get_phieu_xuat_kho_detail(doc_id: int, db: Session = Depends(get_db)):
             } for i in items
         ]
     }
+@router.put("/documents/phieu-xuat-kho/{pxk_id}")
+def update_phieu_xuat_kho(pxk_id: int, data: PhieuXuatKhoCreate, db: Session = Depends(get_db)):
+    pxk = db.query(WarehouseIssue).filter(WarehouseIssue.id == pxk_id).first()
+    if not pxk:
+        raise HTTPException(404, "Không tìm thấy PXK")
+
+    # Cập nhật header
+    pxk.ngay_phieu_xuat = data.ngay_phieu_xuat
+    pxk.loai_phieu_xuat = data.loai_phieu_xuat or pxk.loai_phieu_xuat
+    pxk.khach_hang_id = data.khach_hang_id
+    pxk.nguoi_giao_dich = data.nguoi_giao_dich
+    pxk.dien_giai = data.dien_giai
+    pxk.period_id = data.ky_ke_toan_id
+
+    # Xóa items cũ
+    db.query(WarehouseIssueItem).filter(
+        WarehouseIssueItem.issue_id == pxk_id
+    ).delete()
+
+    # Insert items mới
+    tong_tien = 0
+    tong_so_luong = 0
+    for item in data.items:
+        tt = item.quantity * item.unit_price
+        tong_tien += tt
+        tong_so_luong += item.quantity
+        pxk_item = WarehouseIssueItem(
+            issue_id=pxk_id,
+            product_id=item.product_id,
+            warehouse_id=item.warehouse_id,
+            quantity=item.quantity,
+            unit_price=item.unit_price,
+            current_stock=0
+        )
+        db.add(pxk_item)
+
+    pxk.tong_tien = tong_tien
+    pxk.tong_so_luong = tong_so_luong
+    db.commit()
+    return {"message": "Cập nhật PXK thành công", "id": pxk_id}
 
 # ============ TỒN KHO ============
 @router.get("/stock-summary", response_model=list[StockSummaryResponse])

@@ -657,6 +657,49 @@ def get_phieu_ban_hang_detail(doc_id: int, db: Session = Depends(get_db)):
                    "unit_price": float(i.unit_price),
                    "total": float(i.quantity * i.unit_price)} for i in items]
     }
+# Thêm 10/05/2026
+@router.put("/documents/phieu-ban-hang/{doc_id}")
+def update_phieu_ban_hang(doc_id: int, data: PhieuBanHangCreate, db: Session = Depends(get_db)):
+    doc = db.query(Document).filter(
+        Document.id == doc_id, Document.document_type == "PBH"
+    ).first()
+    if not doc:
+        raise HTTPException(404, "Không tìm thấy")
+
+    meta = json.dumps({
+        "customer_id": data.MaKH,
+        "dien_giai": data.DienGiai or "",
+        "so_hd": data.SoHD or "",
+        "ngay_hd": str(data.NgayHD) if data.NgayHD else "",
+        "nguoi_gd": data.NguoiGD or "",
+        "hinh_thuc_tt": data.HinhThucTT or ""
+    })
+    doc.document_date = data.NgayCT
+    doc.period_id = data.MaKyKeToan
+    doc.description = meta
+
+    # Xóa items cũ
+    db.query(SalesOrderItem).filter(
+        SalesOrderItem.sales_order_id == doc_id
+    ).delete()
+
+    # Insert items mới
+    total = 0
+    for hang in data.DanhSachHang:
+        tt = hang.SoLuong * hang.DonGia
+        total += tt
+        item = SalesOrderItem(
+            sales_order_id=doc_id,
+            product_id=hang.MaHH,
+            quantity=hang.SoLuong,
+            unit_price=hang.DonGia,
+            notes=hang.GhiChu
+        )
+        db.add(item)
+
+    doc.total_amount = total
+    db.commit()
+    return {"message": "Cập nhật thành công", "id": doc_id}
 
 
 # ============ PHIẾU BÁN LẺ ============

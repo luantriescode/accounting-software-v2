@@ -80,6 +80,7 @@ class WarehouseIssue(Base):
     ngay_phieu_xuat = Column(Date, nullable=False)
     khach_hang_id = Column(Integer, ForeignKey("customers.id"))
     ten_khach_le = Column(String(255), nullable=True)
+    pbh_id = Column(Integer, nullable=True)  
     dia_chi = Column(String(500))
     nguoi_giao_dich = Column(String(100))
     dien_giai = Column(Text)

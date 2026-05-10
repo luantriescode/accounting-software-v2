@@ -105,6 +105,7 @@ class PhieuXuatKhoCreate(BaseModel):
     dien_giai: Optional[str] = None
     items: list[WarehouseIssueItemCreate]
     ky_ke_toan_id: int
+    pbh_id: Optional[int] = None   #Thêm 10/05/2026
 class PhieuXuatKhoResponse(BaseModel):
     id: int
     so_phieu_xuat: str
@@ -116,6 +117,7 @@ class PhieuXuatKhoResponse(BaseModel):
     tong_so_luong: int
     tong_tien: float
     trang_thai: str
+    pbh_id: Optional[int] = None              # ✅ THÊM 10/05/2026
 
 
 # ============ STOCK SUMMARY ============
