@@ -3865,13 +3865,24 @@ const SalesOrder=()=>{
     return `${pre}-${String(maxNum+1).padStart(3,'0')}`
   }
 
-  const makeEmptyForm=(list=[])=>({
+  const makeNewSoPXK=(list=[])=>{
+    const ym=new Date().toISOString().slice(0,7).replace('-','')
+    const pre=`PXK-${ym}`
+    const maxNum=(list||[]).reduce((mx,r)=>{
+      const s=r.so_phieu_xuat||''; if(!s.startsWith(pre)) return mx
+      const n=parseInt(s.split('-').pop())||0; return n>mx?n:mx
+    },0)
+    return `${pre}-${String(maxNum+1).padStart(3,'0')}`
+  }
+
+  const makeEmptyForm=(list=[],pxkL=[])=>({
     SoCT:makeNewSoCT(list),NgayCT:today(),MaKyKeToan:kyDefault,
     MaKH:'',NguoiGD:'',DienGiai:'',SoHD:'',NgayHD:today(),HinhThucTT:'Tiền mặt',
-    KhoXuat:''
+    KhoXuat:'',SoPXK:makeNewSoPXK(pxkL)
   })
   const emptyRows=()=>[{product_id:'',quantity:1,unit_price:0}]
 
+  const [pxkList,setPxkList]=useState([])
   const [form,setForm]=useState(()=>makeEmptyForm())
   const [rows,setRows]=useState(emptyRows())
   const sf=k=>e=>setForm(f=>({...f,[k]:e.target.value}))
@@ -3882,6 +3893,11 @@ const SalesOrder=()=>{
     api('GET','/warehouses').then(d=>setWarehouses(Array.isArray(d)?d:[]))
     api('GET','/system-config/mau_hoa_don').then(d=>{
       setInvoiceTemplates(Array.isArray(d?.data)?d.data:[])
+    })
+    api('GET','/documents/phieu-xuat-kho').then(d=>{
+      const list=Array.isArray(d)?d:[]
+      setPxkList(list)
+      setForm(f=>({...f,SoPXK:makeNewSoPXK(list)}))
     })
   },[])
 
@@ -3995,35 +4011,26 @@ const SalesOrder=()=>{
     }
     const r=await api('POST','/documents/phieu-ban-hang',body)
     if(r&&!r.__error){
-      // ✅ Tự động tạo Phiếu Xuất Kho liên kết
+      // Tự động tạo PXK nếu có chọn kho
       if(form.KhoXuat){
-        const pxkData=await api('GET','/documents/phieu-xuat-kho')
-        const pxkList=Array.isArray(pxkData)?pxkData:[]
-        const ym=new Date().toISOString().slice(0,7).replace('-','')
-        const pre=`PXK-${ym}`
-        const maxNum=pxkList.reduce((mx,x)=>{
-          const s=x.so_phieu_xuat||''; if(!s.startsWith(pre)) return mx
-          const n=parseInt(s.split('-').pop())||0; return n>mx?n:mx
-        },0)
-        const soPXK=`${pre}-${String(maxNum+1).padStart(3,'0')}`
         const pxkBody={
-          so_phieu_xuat: soPXK,
+          so_phieu_xuat: form.SoPXK,
           ngay_phieu_xuat: form.NgayCT,
           loai_phieu_xuat: 'Xuất bán',
           khach_hang_id: form.MaKH?+form.MaKH:null,
           dien_giai: `Xuất kho cho ${form.SoCT}`,
           ky_ke_toan_id: +form.MaKyKeToan,
-          pbh_id: r.id,     // Thêm 10/05/2026
-          items: validRows.map(r=>({
-            product_id:+r.product_id,
+          pbh_id: r.id,
+          items: validRows.map(row=>({
+            product_id:+row.product_id,
             warehouse_id:+form.KhoXuat,
-            quantity:+r.quantity,
-            unit_price:+r.unit_price
+            quantity:+row.quantity,
+            unit_price:+row.unit_price
           }))
         }
         const pxkRes=await api('POST','/documents/phieu-xuat-kho',pxkBody)
         if(pxkRes&&!pxkRes.__error)
-          showAlert(`Tạo PBH ${form.SoCT} thành công! Đã tạo PXK ${soPXK} liên kết.`)
+          showAlert(`Tạo PBH ${form.SoCT} thành công! Đã tạo PXK ${form.SoPXK} liên kết.`)
         else
           showAlert(`Tạo PBH ${form.SoCT} thành công! (Tạo PXK thất bại: ${pxkRes?.message||'lỗi'})`, 'warning')
       } else {
@@ -4031,7 +4038,11 @@ const SalesOrder=()=>{
       }
       const newData=await api('GET','/documents/phieu-ban-hang')
       const list=Array.isArray(newData)?newData:[]
-      setForm(makeEmptyForm(list))
+      // Reload PXK list để sinh số mới không trùng
+      const newPxk=await api('GET','/documents/phieu-xuat-kho')
+      const newPxkList=Array.isArray(newPxk)?newPxk:[]
+      setPxkList(newPxkList)
+      setForm(makeEmptyForm(list,newPxkList))
       setRows(emptyRows())
       load()
       setTab('list')
@@ -4141,6 +4152,7 @@ const SalesOrder=()=>{
       <CB>
         <div className="grid grid-cols-3 gap-3 mb-4">
           <Inp label="Số CT" req value={form.SoCT} onChange={sf('SoCT')} hint="Tự sinh, có thể sửa"/>
+          <Inp label="Số PXK" value={form.SoPXK} onChange={sf('SoPXK')} hint="Số phiếu xuất kho liên kết"/>
           <Inp label="Ngày CT" req type="date" value={form.NgayCT} onChange={sf('NgayCT')}/>
           <Sel label="Kỳ Kế Toán" req value={form.MaKyKeToan} onChange={sf('MaKyKeToan')} options={kyOptions}/>
           <div className="col-span-2">
