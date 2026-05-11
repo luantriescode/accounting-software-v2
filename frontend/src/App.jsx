@@ -4007,41 +4007,45 @@ const SalesOrder=()=>{
       NgayCT:form.NgayCT,SoCT:form.SoCT,MaKH:+form.MaKH,
       SoHD:form.SoHD,NgayHD:form.NgayHD,NguoiGD:form.NguoiGD,
       DienGiai:form.DienGiai,MaKyKeToan:+form.MaKyKeToan,HinhThucTT:form.HinhThucTT,
+      SoPXK:form.SoPXK||null,
       DanhSachHang:validRows.map(r=>({MaHH:+r.product_id,SoLuong:+r.quantity,DonGia:+r.unit_price,GhiChu:''}))
     }
     const r=await api('POST','/documents/phieu-ban-hang',body)
     if(r&&!r.__error){
       // Tự động tạo PXK nếu có chọn kho
-      if(form.KhoXuat){
-        const pxkBody={
-          so_phieu_xuat: form.SoPXK,
-          ngay_phieu_xuat: form.NgayCT,
-          loai_phieu_xuat: 'Xuất bán',
-          khach_hang_id: form.MaKH?+form.MaKH:null,
-          dien_giai: `Xuất kho cho ${form.SoCT}`,
-          ky_ke_toan_id: +form.MaKyKeToan,
-          pbh_id: r.id,
-          items: validRows.map(row=>({
-            product_id:+row.product_id,
-            warehouse_id:+form.KhoXuat,
-            quantity:+row.quantity,
-            unit_price:+row.unit_price
-          }))
+      if(form.KhoXuat && form.SoPXK){
+        try{
+          const pxkBody={
+            so_phieu_xuat: form.SoPXK,
+            ngay_phieu_xuat: form.NgayCT,
+            loai_phieu_xuat: 'Xuất bán',
+            khach_hang_id: form.MaKH?+form.MaKH:null,
+            dien_giai: `Xuất kho cho ${form.SoCT}`,
+            ky_ke_toan_id: +form.MaKyKeToan,
+            pbh_id: r.id,
+            items: validRows.map(row=>({
+              product_id:+row.product_id,
+              warehouse_id:+form.KhoXuat,
+              quantity:+row.quantity,
+              unit_price:+row.unit_price
+            }))
+          }
+          const pxkRes=await api('POST','/documents/phieu-xuat-kho',pxkBody)
+          if(pxkRes&&!pxkRes.__error)
+            showAlert(`Tạo PBH ${form.SoCT} thành công! Đã tạo PXK ${form.SoPXK} liên kết.`)
+          else
+            showAlert(`Tạo PBH ${form.SoCT} thành công! (Tạo PXK thất bại: ${pxkRes?.message||'lỗi'})`, 'warning')
+        }catch(e){
+          showAlert(`Tạo PBH ${form.SoCT} thành công! (Tạo PXK lỗi ngoại lệ)`, 'warning')
         }
-        const pxkRes=await api('POST','/documents/phieu-xuat-kho',pxkBody)
-        if(pxkRes&&!pxkRes.__error)
-          showAlert(`Tạo PBH ${form.SoCT} thành công! Đã tạo PXK ${form.SoPXK} liên kết.`)
-        else
-          showAlert(`Tạo PBH ${form.SoCT} thành công! (Tạo PXK thất bại: ${pxkRes?.message||'lỗi'})`, 'warning')
       } else {
         showAlert(`Tạo PBH ${form.SoCT} thành công!`)
       }
+      const newPxkData=await api('GET','/documents/phieu-xuat-kho')
+      const newPxkList=Array.isArray(newPxkData)?newPxkData:[]
+      setPxkList(newPxkList)
       const newData=await api('GET','/documents/phieu-ban-hang')
       const list=Array.isArray(newData)?newData:[]
-      // Reload PXK list để sinh số mới không trùng
-      const newPxk=await api('GET','/documents/phieu-xuat-kho')
-      const newPxkList=Array.isArray(newPxk)?newPxk:[]
-      setPxkList(newPxkList)
       setForm(makeEmptyForm(list,newPxkList))
       setRows(emptyRows())
       load()

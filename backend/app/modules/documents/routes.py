@@ -567,13 +567,20 @@ def create_phieu_ban_hang(data: PhieuBanHangCreate, db: Session = Depends(get_db
     total_amount = sum(item.SoLuong * item.DonGia for item in data.DanhSachHang)
 
     # Lưu customer_id vào description dạng JSON
+    if db.query(Document).filter(
+        Document.document_number == data.SoCT,
+        Document.document_type == "PBH"
+    ).first():
+        raise HTTPException(400, f"Số phiếu {data.SoCT} đã tồn tại")
+
     meta = json.dumps({
         "customer_id": data.MaKH,
         "dien_giai": data.DienGiai or "",
         "so_hd": data.SoHD or "",
         "ngay_hd": str(data.NgayHD) if data.NgayHD else "",
         "nguoi_gd": data.NguoiGD or "",
-        "hinh_thuc_tt": data.HinhThucTT or ""
+        "hinh_thuc_tt": data.HinhThucTT or "",
+        "so_pxk": data.SoPXK or ""
     })
 
     doc = Document(

@@ -144,6 +144,7 @@ class PhieuBanHangCreate(BaseModel):
     NguoiGD: Optional[str] = None
     DienGiai: Optional[str] = None
     HinhThucTT: Optional[str] = None
+    SoPXK: Optional[str] = None
     DanhSachHang: list[PhieuBanHangItemCreate]
 
 class PhieuBanHangResponse(BaseModel):
