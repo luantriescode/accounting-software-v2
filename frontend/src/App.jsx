@@ -1313,7 +1313,7 @@ const WarehouseIssuePage=()=>{
               <div className="flex gap-2">
                 <span className="text-gray-500 w-32 flex-shrink-0">Khách Hàng:</span>
                 <strong>
-                  {detail.ten_kh||getKHLabel(detail.MaKH||detail.khach_hang_id)||'-'}
+                  {detail.ten_khach_le?`${detail.ten_khach_le} (Khách lẻ)`:detail.khach_hang_ten||getKHLabel(detail.MaKH||detail.khach_hang_id)||'-'}
                 </strong>
               </div>
               {detail.nguoi_giao_dich&&(
@@ -4431,6 +4431,12 @@ const RetailOrder=()=>{
   const [detail,setDetail]=useState(null)
   const [detailModal,setDetailModal]=useState(false)
   const [detailLoading,setDetailLoading]=useState(false)
+  const [pxkList,setPxkList]=useState([])
+  const [editModal,setEditModal]=useState(false)
+  const [editForm,setEditForm]=useState(null)
+  const [editRows,setEditRows]=useState([])
+  const [editLoading,setEditLoading]=useState(false)
+  const sef=k=>e=>setEditForm(f=>({...f,[k]:e.target.value}))
 
   const makeNewSoCT=(list)=>{
     const ym=new Date().toISOString().slice(0,7).replace('-','')
@@ -4443,10 +4449,20 @@ const RetailOrder=()=>{
     },0)
     return `${pre}-${String(maxNum+1).padStart(3,'0')}`
   }
-  const makeEmptyForm=(list=[])=>({
+  const makeNewSoPXK=(pxkL,blList=[])=>{
+    const ym=new Date().toISOString().slice(0,7).replace('-','')
+    const pre=`PXK-${ym}`
+    const usedNums=new Set()
+    ;(pxkL||[]).forEach(x=>{const s=x.so_phieu_xuat||'';if(s.startsWith(pre)){const n=parseInt(s.split('-').pop())||0;usedNums.add(n)}})
+    ;(blList||[]).forEach(x=>{const s=x.SoPXK||'';if(s.startsWith(pre)){const n=parseInt(s.split('-').pop())||0;usedNums.add(n)}})
+    let num=1;while(usedNums.has(num))num++
+    return `${pre}-${String(num).padStart(3,'0')}`
+  }
+
+  const makeEmptyForm=(list=[],pxkL=[])=>({
     SoCT:makeNewSoCT(list),NgayCT:today(),MaKyKeToan:kyDefault,
     KhachHang:'',DienGiai:'',SoHD:'',KyHieuHD:'',TrangThaiHDDT:'CHUA_PH',
-    KhoXuat:''
+    KhoXuat:'',SoPXK:makeNewSoPXK(pxkL,list)
   })
   const emptyRows=()=>[{product_id:'',quantity:1,unit_price:0}]
 
@@ -4457,6 +4473,7 @@ const RetailOrder=()=>{
   useEffect(()=>{
     api('GET','/products').then(d=>setProducts(Array.isArray(d)?d:[]))
     api('GET','/warehouses').then(d=>setWarehouses(Array.isArray(d)?d:[]))
+    api('GET','/documents/phieu-xuat-kho').then(d=>setPxkList(Array.isArray(d)?d:[]))
   },[])
 
   useEffect(()=>{
@@ -4471,6 +4488,111 @@ const RetailOrder=()=>{
     setDetail(r&&!r.__error?r:{...row,items:[]})
     setDetailLoading(false)
   }
+  const openEdit=async()=>{
+    if(!detail) return
+    // Lấy kho từ PXK liên kết
+    let khoXuat=''
+    const pxkData=await api('GET','/documents/phieu-xuat-kho')
+    const pxkAll=Array.isArray(pxkData)?pxkData:[]
+    const linkedPXK=pxkAll.find(p=>String(p.bl_id)===String(detail.id))
+      ||pxkAll.find(p=>p.so_phieu_xuat===detail.SoPXK)
+    if(linkedPXK){
+      const pxkDetail=await api('GET',`/documents/phieu-xuat-kho/${linkedPXK.id}`)
+      if(pxkDetail&&!pxkDetail.__error&&pxkDetail.items?.[0]?.warehouse_id)
+        khoXuat=String(pxkDetail.items[0].warehouse_id)
+    }
+    setEditForm({
+      SoCT:detail.SoCT,
+      NgayCT:detail.NgayCT,
+      MaKyKeToan:detail.MaKyKeToan||kyDefault,
+      KhachHang:detail.KhachHang||'',
+      DienGiai:detail.DienGiai||'',
+      SoHD:detail.SoHD||'',
+      KyHieuHD:detail.KyHieuHD||'',
+      TrangThaiHDDT:detail.TrangThaiHDDT||'CHUA_PH',
+      KhoXuat:khoXuat,
+      SoPXK:detail.SoPXK||''
+    })
+    setEditRows((detail.items||[]).map(i=>({
+      product_id:i.product_id,
+      quantity:i.quantity,
+      unit_price:i.unit_price
+    })))
+    setEditModal(true)
+  }
+const saveEdit=async()=>{
+    if(!editForm.NgayCT){showAlert('Vui lòng chọn Ngày CT!','danger');return}
+    if(!editForm.MaKyKeToan){showAlert('Vui lòng chọn Kỳ Kế Toán!','danger');return}
+    const validEditRows=editRows.filter(r=>r.product_id&&+r.quantity>0)
+    if(!validEditRows.length){showAlert('Vui lòng thêm ít nhất 1 dòng hàng hóa!','danger');return}
+    setEditLoading(true)
+    const body={
+      SoCT:editForm.SoCT,NgayCT:editForm.NgayCT,
+      MaKyKeToan:+editForm.MaKyKeToan,
+      KhachHang:editForm.KhachHang||null,
+      DienGiai:editForm.DienGiai||null,
+      SoHD:editForm.SoHD||null,
+      SoPXK:editForm.SoPXK||null,
+      DanhSachHang:validEditRows.map(r=>({MaHH:+r.product_id,SoLuong:+r.quantity,DonGia:+r.unit_price}))
+    }
+    const r=await api('PUT',`/documents/phieu-ban-le/${detail.id}`,body)
+    if(r&&!r.__error){
+      try{
+        const pxkData=await api('GET','/documents/phieu-xuat-kho')
+        const pxkAll=Array.isArray(pxkData)?pxkData:[]
+        const linkedPXK=pxkAll.find(p=>String(p.bl_id)===String(detail.id))
+          || pxkAll.find(p=>p.so_phieu_xuat===editForm.SoPXK)
+        if(linkedPXK){
+          const pxkBody={
+            so_phieu_xuat:linkedPXK.so_phieu_xuat,
+            ngay_phieu_xuat:editForm.NgayCT,
+            loai_phieu_xuat:linkedPXK.loai_phieu_xuat||'Xuất bán',
+            khach_hang_id:null,
+            ten_khach_le:editForm.KhachHang||'',
+            nguoi_giao_dich:editForm.KhachHang||'Khách lẻ',
+            dien_giai:linkedPXK.dien_giai||`Xuất kho cho ${editForm.SoCT}`,
+            ky_ke_toan_id:+editForm.MaKyKeToan,
+            bl_id:detail.id,
+            items:validEditRows.map(row=>({
+              product_id:+row.product_id,
+              warehouse_id:editForm.KhoXuat?+editForm.KhoXuat:(linkedPXK.items?.[0]?.warehouse_id||1),
+              quantity:+row.quantity,
+              unit_price:+row.unit_price
+            }))
+          }
+          await api('PUT',`/documents/phieu-xuat-kho/${linkedPXK.id}`,pxkBody)
+          showAlert('Cập nhật BL thành công! Đã sync PXK liên kết.')
+        } else if(editForm.KhoXuat&&editForm.SoPXK){
+          const pxkBody={
+            so_phieu_xuat:editForm.SoPXK,
+            ngay_phieu_xuat:editForm.NgayCT,
+            loai_phieu_xuat:'Xuất bán',
+            khach_hang_id:null,
+            ten_khach_le:editForm.KhachHang||'Khách lẻ',
+            nguoi_giao_dich:null,
+            dien_giai:`Xuất kho cho ${editForm.SoCT}`,
+            ky_ke_toan_id:+editForm.MaKyKeToan,
+            bl_id:detail.id,
+            items:validEditRows.map(row=>({
+              product_id:+row.product_id,
+              warehouse_id:+editForm.KhoXuat,
+              quantity:+row.quantity,
+              unit_price:+row.unit_price
+            }))
+          }
+          const pxkRes=await api('POST','/documents/phieu-xuat-kho',pxkBody)
+          showAlert('Cập nhật BL thành công!'+(pxkRes&&!pxkRes.__error?` Đã tạo PXK ${editForm.SoPXK}.`:'(Tạo PXK thất bại)'))
+        } else {
+          showAlert('Cập nhật BL thành công!')
+        }
+      }catch(e){
+        showAlert('Cập nhật BL thành công! (Lỗi xử lý PXK)','warning')
+      }
+      setEditModal(false);setDetailModal(false);setDetail(null);load()
+    } else showAlert('Lỗi: '+(r?.message||'Cập nhật thất bại'),'danger')
+    setEditLoading(false)
+  }
+  
 
   const save=async()=>{
     if(!form.SoCT){showAlert('Vui lòng nhập Số CT!','danger');return}
@@ -4479,48 +4601,47 @@ const RetailOrder=()=>{
     const body={
       SoCT:form.SoCT,NgayCT:form.NgayCT,KhachHang:form.KhachHang,
       DienGiai:form.DienGiai,MaKyKeToan:+form.MaKyKeToan,
+      SoPXK:form.SoPXK||null,
       DanhSachHang:validRows.map(r=>({MaHH:+r.product_id,SoLuong:+r.quantity,DonGia:+r.unit_price}))
     }
     const r=await api('POST','/documents/phieu-ban-le',body)
     if(r&&!r.__error){
-      // ✅ Tự động tạo Phiếu Xuất Kho liên kết
-      if(form.KhoXuat){
-        const pxkData=await api('GET','/documents/phieu-xuat-kho')
-        const pxkList=Array.isArray(pxkData)?pxkData:[]
-        const ym=new Date().toISOString().slice(0,7).replace('-','')
-        const pre=`PXK-${ym}`
-        const maxNum=pxkList.reduce((mx,x)=>{
-          const s=x.so_phieu_xuat||''; if(!s.startsWith(pre)) return mx
-          const n=parseInt(s.split('-').pop())||0; return n>mx?n:mx
-        },0)
-        const soPXK=`${pre}-${String(maxNum+1).padStart(3,'0')}`
-        const pxkBody={
-          so_phieu_xuat: soPXK,
-          ngay_phieu_xuat: form.NgayCT,
-          loai_phieu_xuat: 'Xuất bán',
-          khach_hang_id: null,
-          ten_khach_le: form.KhachHang||'',
-          nguoi_giao_dich: form.KhachHang||'Khách lẻ',
-          dien_giai: `Xuất kho cho ${form.SoCT}`,
-          ky_ke_toan_id: +form.MaKyKeToan,
-          items: validRows.map(r=>({
-            product_id:+r.product_id,
-            warehouse_id:+form.KhoXuat,
-            quantity:+r.quantity,
-            unit_price:+r.unit_price
-          }))
+      if(form.KhoXuat&&form.SoPXK){
+        try{
+          const pxkBody={
+            so_phieu_xuat:form.SoPXK,
+            ngay_phieu_xuat:form.NgayCT,
+            loai_phieu_xuat:'Xuất bán',
+            khach_hang_id:null,
+            ten_khach_le:form.KhachHang||'Khách lẻ',
+            nguoi_giao_dich:null,
+            dien_giai:`Xuất kho cho ${form.SoCT}`,
+            ky_ke_toan_id:+form.MaKyKeToan,
+            bl_id:r.id,
+            items:validRows.map(row=>({
+              product_id:+row.product_id,
+              warehouse_id:+form.KhoXuat,
+              quantity:+row.quantity,
+              unit_price:+row.unit_price
+            }))
+          }
+          const pxkRes=await api('POST','/documents/phieu-xuat-kho',pxkBody)
+          if(pxkRes&&!pxkRes.__error)
+            showAlert(`Tạo BL ${form.SoCT} thành công! Đã tạo PXK ${form.SoPXK} liên kết.`)
+          else
+            showAlert(`Tạo BL ${form.SoCT} thành công! (Tạo PXK thất bại: ${pxkRes?.message||'lỗi'})`, 'warning')
+        }catch(e){
+          showAlert(`Tạo BL ${form.SoCT} thành công! (Tạo PXK lỗi ngoại lệ)`, 'warning')
         }
-        const pxkRes=await api('POST','/documents/phieu-xuat-kho',pxkBody)
-        if(pxkRes&&!pxkRes.__error)
-          showAlert(`Tạo BL ${form.SoCT} thành công! Đã tạo PXK ${soPXK} liên kết.`)
-        else
-          showAlert(`Tạo BL ${form.SoCT} thành công! (Tạo PXK thất bại: ${pxkRes?.message||'lỗi'})`, 'warning')
       } else {
         showAlert(`Tạo BL ${form.SoCT} thành công!`)
       }
+      const newPxkData=await api('GET','/documents/phieu-xuat-kho')
+      const newPxkList=Array.isArray(newPxkData)?newPxkData:[]
+      setPxkList(newPxkList)
       const newData=await api('GET','/documents/phieu-ban-le')
       const list=Array.isArray(newData)?newData:[]
-      setForm(makeEmptyForm(list))
+      setForm(makeEmptyForm(list,newPxkList))
       setRows(emptyRows())
       load()
       setTab('list')
@@ -4533,9 +4654,46 @@ const RetailOrder=()=>{
     {alert&&<Alert msg={alert.msg} type={alert.type} onClose={closeAlert}/>}
     <DetailModal open={detailModal} onClose={()=>{setDetailModal(false);setDetail(null)}}
       title={`🛍️ Chi Tiết Phiếu Bán Lẻ - ${detail?.SoCT||''}`}
-      detail={detail} loading={detailLoading} products={products} customers={[]} suppliers={[]}/>
+      detail={detail} loading={detailLoading} products={products} customers={[]} suppliers={[]}
+      onEdit={detail?openEdit:null}/>
+    {editModal&&editForm&&<Modal open={editModal} onClose={()=>setEditModal(false)}
+      title={`✏️ Sửa Phiếu Bán Lẻ - ${editForm.SoCT}`} size="xl">
+      <div className="p-4 space-y-4">
+        <div className="grid grid-cols-3 gap-3">
+          <Inp label="Số CT" disabled value={editForm.SoCT}/>
+          <Inp label="Ngày CT" req type="date" value={editForm.NgayCT} onChange={sef('NgayCT')}/>
+          <Sel label="Kỳ Kế Toán" req value={editForm.MaKyKeToan} onChange={sef('MaKyKeToan')} options={kyOptions}/>
+          <div className="col-span-2">
+            <Inp label="Khách Hàng" value={editForm.KhachHang} onChange={sef('KhachHang')} placeholder="Tên khách (không bắt buộc)"/>
+          </div>
+          <Inp label="Số HĐ" value={editForm.SoHD} onChange={sef('SoHD')}/>
+          <Inp label="Số PXK" value={editForm.SoPXK} onChange={sef('SoPXK')} hint="Từ lúc tạo BL"/>
+          <Sel label="🏭 Kho Xuất" value={editForm.KhoXuat} onChange={sef('KhoXuat')}
+            options={[{value:'',label:'-- Không đổi kho --'},...warehouses.map(w=>({value:w.id,label:`${w.MaKho||w.code} - ${w.TenKho||w.name}`}))]}/>
+          <div className="col-span-3">
+            <Inp label="Diễn Giải" value={editForm.DienGiai} onChange={sef('DienGiai')}/>
+          </div>
+        </div>
+        <p className="text-xs font-bold text-gray-600">Danh Sách Hàng Hóa:</p>
+        <DetailTbl rows={editRows} setRows={setEditRows} products={products} color="yellow"/>
+      </div>
+      <div className="flex justify-end gap-2 px-4 pb-4">
+        <Btn v="outline" onClick={()=>setEditModal(false)}>Hủy</Btn>
+        <Btn v="success" loading={editLoading} onClick={saveEdit}>💾 Lưu Thay Đổi</Btn>
+      </div>
+    </Modal>}
     <Tabs tabs={[{id:'list',label:'📋 Danh Sách'},{id:'create',label:'+ Tạo Mới'}]} active={tab}
-      onChange={t=>{setTab(t);if(t==='create'){setForm(makeEmptyForm(data));setRows(emptyRows())}}}/>
+      onChange={t=>{
+        setTab(t)
+        if(t==='create'){
+          api('GET','/documents/phieu-xuat-kho').then(newPxk=>{
+            const pl=Array.isArray(newPxk)?newPxk:[]
+            setPxkList(pl)
+            setForm(makeEmptyForm(data,pl))
+          })
+          setRows(emptyRows())
+        }
+      }}/>
     {tab==='list'&&<Card>
       <CH><h3 className="font-bold">🛍️ Danh Sách Phiếu Bán Lẻ</h3>
           <div className="ml-auto flex gap-2">
@@ -4570,6 +4728,7 @@ const RetailOrder=()=>{
           <div className="col-span-2">
             <Inp label="Khách Hàng" value={form.KhachHang} onChange={sf('KhachHang')} placeholder="Tên khách (không bắt buộc)"/>
           </div>
+          <Inp label="Số PXK" value={form.SoPXK} onChange={sf('SoPXK')} hint="Tự sinh"/>
           <Sel label="🏭 Kho Xuất (tạo PXK tự động)" value={form.KhoXuat} onChange={sf('KhoXuat')}
             options={[{value:'',label:'-- Không tạo PXK --'},...warehouses.map(w=>({value:w.id,label:`${w.MaKho||w.code} - ${w.TenKho||w.name}`}))]}/>
           <div className="col-span-2"><Inp label="Diễn Giải" value={form.DienGiai} onChange={sf('DienGiai')}/></div>

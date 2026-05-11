@@ -168,6 +168,10 @@ class PhieuBanLeCreate(BaseModel):
     MaKyKeToan: int
     KhachHang: Optional[str] = None
     DienGiai: Optional[str] = None
+    SoPXK: Optional[str] = None
+    SoHD: Optional[str] = None
+    KyHieuHD: Optional[str] = None
+    TrangThaiHDDT: Optional[str] = None
     DanhSachHang: list[PhieuBanLeItemCreate]
 
 class PhieuBanLeResponse(BaseModel):

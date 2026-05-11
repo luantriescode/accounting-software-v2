@@ -241,7 +241,8 @@ def create_phieu_xuat_kho(data: PhieuXuatKhoCreate, db: Session = Depends(get_db
         nguoi_giao_dich=data.nguoi_giao_dich,
         dien_giai=data.dien_giai,
         period_id=data.ky_ke_toan_id,
-        pbh_id=data.pbh_id,                         #✅ THÊM 10/05/2026
+        pbh_id=data.pbh_id,
+        bl_id=data.bl_id,
         tong_tien=tong_tien,
         tong_so_luong=tong_so_luong,
         trang_thai="DRAFT"
@@ -273,6 +274,41 @@ def create_phieu_xuat_kho(data: PhieuXuatKhoCreate, db: Session = Depends(get_db
         tong_tien=float(pxk.tong_tien),
         trang_thai=pxk.trang_thai
     )
+@router.get("/documents/phieu-xuat-kho/{pxk_id}")
+def get_phieu_xuat_kho_detail(pxk_id: int, db: Session = Depends(get_db)):
+    p = db.query(WarehouseIssue).filter(WarehouseIssue.id == pxk_id).first()
+    if not p:
+        raise HTTPException(404, "Không tìm thấy PXK")
+    items = db.query(WarehouseIssueItem).filter(WarehouseIssueItem.issue_id == pxk_id).all()
+    khach_hang_ten = None
+    if p.khach_hang_id:
+        from app.modules.catalog.models import Customer
+        kh = db.query(Customer).filter(Customer.id == p.khach_hang_id).first()
+        khach_hang_ten = kh.name if kh else None
+    return {
+        "id": p.id,
+        "so_phieu_xuat": p.so_phieu_xuat,
+        "ngay_phieu_xuat": str(p.ngay_phieu_xuat),
+        "loai_phieu_xuat": p.loai_phieu_xuat or "",
+        "khach_hang_id": p.khach_hang_id,
+        "khach_hang_ten": khach_hang_ten,
+        "ten_khach_le": p.ten_khach_le or "",
+        "nguoi_giao_dich": p.nguoi_giao_dich or "",
+        "dien_giai": p.dien_giai or "",
+        "tong_tien": float(p.tong_tien or 0),
+        "trang_thai": p.trang_thai or "DRAFT",
+        "pbh_id": p.pbh_id,
+        "bl_id": p.bl_id,
+        "items": [
+            {
+                "product_id": i.product_id,
+                "warehouse_id": i.warehouse_id,
+                "quantity": i.quantity,
+                "unit_price": float(i.unit_price),
+                "total": float(i.quantity * i.unit_price)
+            } for i in items
+        ]
+    }
 
 @router.get("/documents/phieu-xuat-kho", response_model=list[PhieuXuatKhoResponse])
 def get_phieu_xuat_kho(db: Session = Depends(get_db)):
@@ -289,7 +325,9 @@ def get_phieu_xuat_kho(db: Session = Depends(get_db)):
             tong_so_luong=p.tong_so_luong,
             tong_tien=float(p.tong_tien or 0),
             trang_thai=p.trang_thai or "DRAFT",
-            pbh_id=p.pbh_id #✅ THÊM 10/05/2026
+            pbh_id=p.pbh_id,
+            bl_id=p.bl_id
+            
         ) for p in pxks
     ]
 
@@ -353,6 +391,8 @@ def update_phieu_xuat_kho(pxk_id: int, data: PhieuXuatKhoCreate, db: Session = D
     pxk.nguoi_giao_dich = data.nguoi_giao_dich
     pxk.dien_giai = data.dien_giai
     pxk.period_id = data.ky_ke_toan_id
+    pxk.pbh_id = data.pbh_id
+    pxk.bl_id = data.bl_id
 
     # Xóa items cũ
     db.query(WarehouseIssueItem).filter(

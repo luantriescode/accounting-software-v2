@@ -106,6 +106,7 @@ class PhieuXuatKhoCreate(BaseModel):
     items: list[WarehouseIssueItemCreate]
     ky_ke_toan_id: int
     pbh_id: Optional[int] = None   #Thêm 10/05/2026
+    bl_id: Optional[int] = None
 class PhieuXuatKhoResponse(BaseModel):
     id: int
     so_phieu_xuat: str

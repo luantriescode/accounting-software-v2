@@ -714,9 +714,19 @@ def update_phieu_ban_hang(doc_id: int, data: PhieuBanHangCreate, db: Session = D
 def create_phieu_ban_le(data: PhieuBanLeCreate, db: Session = Depends(get_db)):
     total_amount = sum(item.SoLuong * item.DonGia for item in data.DanhSachHang)
 
+    if db.query(Document).filter(
+        Document.document_number == data.SoCT,
+        Document.document_type == "BL"
+    ).first():
+        raise HTTPException(400, f"Số phiếu {data.SoCT} đã tồn tại")
+
     meta = json.dumps({
         "khach_hang": data.KhachHang or "",
-        "dien_giai": data.DienGiai or ""
+        "dien_giai": data.DienGiai or "",
+        "so_pxk": data.SoPXK or "",
+        "so_hd": data.SoHD or "",
+        "ky_hieu_hd": data.KyHieuHD or "",
+        "trang_thai_hddt": data.TrangThaiHDDT or "CHUA_PH"
     }, ensure_ascii=False)
 
     doc = Document(
@@ -794,11 +804,10 @@ def get_phieu_ban_le_detail(doc_id: int, db: Session = Depends(get_db)):
 
     khach_hang = None
     dien_giai = None
+    meta = {}
     try:
         if d.description and d.description.strip().startswith('{'):
             meta = json.loads(d.description)
-            khach_hang = meta.get('khach_hang')
-            dien_giai = meta.get('dien_giai')
     except Exception:
         pass
 
@@ -806,8 +815,13 @@ def get_phieu_ban_le_detail(doc_id: int, db: Session = Depends(get_db)):
         "id": d.id,
         "SoCT": d.document_number,
         "NgayCT": str(d.document_date),
-        "KhachHang": khach_hang,
-        "DienGiai": dien_giai,
+        "MaKyKeToan": d.period_id,
+        "KhachHang": meta.get('khach_hang') or None,
+        "DienGiai": meta.get('dien_giai') or None,
+        "SoPXK": meta.get('so_pxk',''),
+        "SoHD": meta.get('so_hd',''),
+        "KyHieuHD": meta.get('ky_hieu_hd',''),
+        "TrangThaiHDDT": meta.get('trang_thai_hddt','CHUA_PH'),
         "TongTien": float(d.total_amount or 0),
         "TrangThai": d.status,
         "items": [
@@ -819,3 +833,42 @@ def get_phieu_ban_le_detail(doc_id: int, db: Session = Depends(get_db)):
             } for i in items
         ]
     }
+@router.put("/documents/phieu-ban-le/{doc_id}")
+def update_phieu_ban_le(doc_id: int, data: PhieuBanLeCreate, db: Session = Depends(get_db)):
+    doc = db.query(Document).filter(
+        Document.id == doc_id,
+        Document.document_type == "BL"
+    ).first()
+    if not doc:
+        raise HTTPException(404, "Không tìm thấy phiếu")
+
+    total_amount = sum(item.SoLuong * item.DonGia for item in data.DanhSachHang)
+
+    meta = json.dumps({
+        "khach_hang": data.KhachHang or "",
+        "dien_giai": data.DienGiai or "",
+        "so_pxk": data.SoPXK or "",
+        "so_hd": data.SoHD or "",
+        "ky_hieu_hd": data.KyHieuHD or "",
+        "trang_thai_hddt": data.TrangThaiHDDT or "CHUA_PH"
+    }, ensure_ascii=False)
+
+    doc.document_date = data.NgayCT
+    doc.period_id = data.MaKyKeToan
+    doc.total_amount = total_amount
+    doc.description = meta
+
+    db.query(RetailOrderItem).filter(
+        RetailOrderItem.retail_order_id == doc_id
+    ).delete()
+
+    for item in data.DanhSachHang:
+        db.add(RetailOrderItem(
+            retail_order_id=doc_id,
+            product_id=item.MaHH,
+            quantity=item.SoLuong,
+            unit_price=item.DonGia
+        ))
+
+    db.commit()
+    return {"message": "Cập nhật phiếu bán lẻ thành công", "id": doc_id}
