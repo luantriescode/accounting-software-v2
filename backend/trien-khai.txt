@@ -15,14 +15,14 @@ Thoát: exit()
 python -m venv venv
 
 # Activate (Windows)
-venv\Scripts\activate
+cd backend && venv\Scripts\activate
 hủy kick hoạt venv= deactivate
 
 # Cài dependencies
 pip install -r requirements.txt
 cập nhật thư viện= pip install pydantic[email]
-chạy backend= python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8002
-frontend: npm run dev -- --host 0.0.0.0
+chạy backend= python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 9000
+frontend: cd frontend && npm run dev -- --host 0.0.0.0
 
  khi tạo mới cho phiếu mua hang:
  ngoài Số CT tự sinh, sẽ thêm ô số phiếu nhập kho tự sinh kèm theo, khi lưu sẽ lấy số phiếu nhạp kho làm số phiếu cho PNK

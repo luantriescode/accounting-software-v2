@@ -441,8 +441,9 @@ def create_phieu_nhap_mua(data: PhieuNhapMuaCreate, db: Session = Depends(get_db
             product_id=item.MaHH,
             quantity=item.SoLuong,
             unit_price=item.DonGia,
-            chi_phi_phan_bo=item.ChiPhiPhanBo or 0,
-            notes=item.GhiChu
+            chi_phi_phan_bo=item.ChiPhiPhanBo,
+            notes=item.GhiChu or '',
+            warehouse_id=item.MaKho or None
         )
         db.add(poi)
 
@@ -511,6 +512,7 @@ def get_phieu_nhap_mua_detail(doc_id: int, db: Session = Depends(get_db)):
         "TrangThai": d.status,
         "items": [{
             "product_id": i.product_id,
+            "warehouse_id": i.warehouse_id,
             "quantity": float(i.quantity),
             "unit_price": float(i.unit_price),
             "chi_phi_phan_bo": float(i.chi_phi_phan_bo or 0),

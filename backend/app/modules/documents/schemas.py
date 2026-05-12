@@ -98,6 +98,7 @@ class PhieuNhapMuaItemCreate(BaseModel):
     DonGia: float
     GhiChu: Optional[str] = None
     ChiPhiPhanBo: float = 0
+    MaKho: Optional[int] = None
 
 class PhieuNhapMuaCreate(BaseModel):
     SoCT: str

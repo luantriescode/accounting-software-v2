@@ -344,7 +344,7 @@ const Topbar=({page, onNav, onToggleSidebar, sidebarOpen})=>{
 }
 
 // ══ DETAIL TABLE for invoices
-const DetailTbl=({rows,setRows,products,color='blue',hasTax=false})=>{
+const DetailTbl=({rows,setRows,products,warehouses=[],color='blue',hasTax=false,hasWarehouse=false})=>{
   const addRow=()=>setRows(r=>[...r,{product_id:'',quantity:1,unit_price:0,tax_rate:0}])
   const upd=(i,k,v)=>setRows(rs=>rs.map((r,ri)=>ri===i?{...r,[k]:v}:r))
   const del=(i)=>setRows(rs=>rs.filter((_,ri)=>ri!==i))
@@ -356,6 +356,7 @@ const DetailTbl=({rows,setRows,products,color='blue',hasTax=false})=>{
         <thead className={`bg-${color}-50`}><tr>
           <th className={`px-3 py-2 text-left text-xs font-bold text-${color}-700 w-28`}>Mã Hàng</th>
           <th className={`px-3 py-2 text-left text-xs font-bold text-${color}-700`}>Tên Hàng Hóa</th>
+          {hasWarehouse&&<th className={`px-3 py-2 text-left text-xs font-bold text-${color}-700 w-28`}>Kho Nhập</th>}
           <th className={`px-3 py-2 text-right text-xs font-bold text-${color}-700 w-24`}>SL</th>
           <th className={`px-3 py-2 text-right text-xs font-bold text-${color}-700 w-32`}>Đơn Giá</th>
           <th className="px-2 py-2 text-right text-xs font-bold text-orange-500 w-24">CPMH</th>
@@ -375,6 +376,13 @@ const DetailTbl=({rows,setRows,products,color='blue',hasTax=false})=>{
                 </select>
               </td>
               <td className="px-2 py-1.5 text-xs text-gray-600">{products.find(p=>(p.id==r.product_id||p.MaHH==r.product_id))?.TenHH||products.find(p=>(p.id==r.product_id||p.MaHH==r.product_id))?.name||'-'}</td>
+              {hasWarehouse&&<td className="px-2 py-1.5">
+                <select value={r.warehouse_id||''} onChange={e=>upd(i,'warehouse_id',e.target.value)}
+                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none">
+                  <option value="">--</option>
+                  {warehouses.map(w=><option key={w.id} value={w.id}>{w.MaKho||w.code}</option>)}
+                </select>
+              </td>}
               <td className="px-2 py-1.5"><input type="number" min="0" value={r.quantity} onChange={e=>upd(i,'quantity',+e.target.value)} className="w-full px-2 py-1 border border-gray-300 rounded text-xs text-right focus:outline-none"/></td>
               <td className="px-2 py-1.5"><input type="number" min="0" value={r.unit_price} onChange={e=>upd(i,'unit_price',+e.target.value)} className="w-full px-2 py-1 border border-gray-300 rounded text-xs text-right focus:outline-none"/></td>
               <td className="px-2 py-1.5 text-right font-mono text-sm text-orange-500">
@@ -391,7 +399,7 @@ const DetailTbl=({rows,setRows,products,color='blue',hasTax=false})=>{
         </tbody>
         <tfoot className="bg-gray-50 border-t-2 border-gray-200">
           <tr>
-            <td colSpan={hasTax?4:3} className="px-3 py-2 text-sm font-bold text-blue-700">Tạm Tính:</td>
+            <td colSpan={hasTax?(hasWarehouse?5:4):(hasWarehouse?4:3)} className="px-3 py-2 text-sm font-bold text-blue-700">Tạm Tính:</td>
             <td className="px-2 py-2 text-right font-mono font-bold text-orange-500">{fmt(rows.reduce((s,r)=>s+(+r.chi_phi_phan_bo||0),0))}</td>
             <td className="px-2 py-2 text-right font-mono font-bold text-blue-700 text-base">{fmt(rows.reduce((s,r)=>s+(+r.quantity)*(+r.unit_price),0))}</td>
             {hasTax&&<td></td>}
@@ -648,12 +656,13 @@ const FiscalYearFixed = () => (
   />
 )
 
-const WarehouseReceiptPage=()=>{
+const WarehouseReceiptPage=({autoOpenPnkId=null,onAutoOpenDone=null})=>{
   const [data,loading,load]=useList('/documents/phieu-nhap-kho')
   const [tab,setTab]=useState('list')
   const [warehouses,setWarehouses]=useState([])
   const [products,setProducts]=useState([])
   const [suppliers,setSuppliers]=useState([])
+  const {options:kyOptions,defaultKy:kyDefault}=useKyKeToan()
   const [alert,showAlert,closeAlert]=useAlert()
   const [detail,setDetail]=useState(null)
   const [detailModal,setDetailModal]=useState(false)
@@ -679,7 +688,7 @@ const WarehouseReceiptPage=()=>{
     nha_cung_cap_id: '',
     nguoi_giao_dich: '',
     dien_giai: '',
-    ky_ke_toan_id: 1
+    ky_ke_toan_id: kyDefault
   })
   const emptyRows=()=>[{product_id:'',warehouse_id:'',quantity:1,unit_price:0}]
 
@@ -697,6 +706,17 @@ const WarehouseReceiptPage=()=>{
   useEffect(()=>{
     if(!loading&&tab==='list') setForm(f=>({...f,so_phieu_nhap:makeNewSoCT(data)}))
   },[data,loading])
+  useEffect(()=>{
+    if(autoOpenPnkId){
+      api('GET',`/documents/phieu-nhap-kho/${autoOpenPnkId}`).then(r=>{
+        if(r&&!r.__error){
+          setDetail(r)
+          setDetailModal(true)
+        }
+        if(onAutoOpenDone) onAutoOpenDone()
+      })
+    }
+  },[autoOpenPnkId])
 
   // ── Xem chi tiết ──
   const openDetail=async(row)=>{
@@ -1153,6 +1173,7 @@ const WarehouseIssuePage=()=>{
   const [warehouses,setWarehouses]=useState([])
   const [products,setProducts]=useState([])
   const [customers,setCustomers]=useState([])
+  const {options:kyOptions,defaultKy:kyDefault}=useKyKeToan()
   const [alert,showAlert,closeAlert]=useAlert()
   const [detail,setDetail]=useState(null)
   const [detailModal,setDetailModal]=useState(false)
@@ -1178,7 +1199,7 @@ const WarehouseIssuePage=()=>{
     khach_hang_id: '',
     nguoi_giao_dich: '',
     dien_giai: '',
-    ky_ke_toan_id: 1
+    ky_ke_toan_id: kyDefault
   })
   const emptyRows=()=>[{product_id:'',warehouse_id:'',quantity:1,unit_price:0}]
 
@@ -1499,7 +1520,8 @@ const WarehouseIssuePage=()=>{
           </div>
           <Inp label="Người Giao Dịch" value={form.nguoi_giao_dich}
             onChange={sf('nguoi_giao_dich')}/>
-          <div className="col-span-3">
+          <Sel label="Kỳ Kế Toán" req value={form.ky_ke_toan_id} onChange={sf('ky_ke_toan_id')} options={kyOptions}/>
+          <div className="col-span-2">
             <Inp label="Diễn Giải" value={form.dien_giai} onChange={sf('dien_giai')}/>
           </div>
         </div>
@@ -3191,11 +3213,12 @@ const isBC=type==='nv-bc'
 }
 
 // PHIẾU NHẬP MUA - API: NgayCT, SoCT, MaNCC, SoHD, NgayHD, NguoiGD, DienGiai, MaKyKeToan, HinhThucTT, DanhSachHang[{MaHH,SoLuong,DonGia,GhiChu}]
-const PurchaseInvoice=()=>{
+const PurchaseInvoice=({onNav,onOpenPnk})=>{
   const [data,loading,load]=useList('/documents/phieu-nhap-mua')
   const [tab,setTab]=useState('list')
   const [suppliers,setSuppliers]=useState([])
   const [products,setProducts]=useState([])
+  const [warehouses,setWarehouses]=useState([])
   const {options:kyOptions,defaultKy:kyDefault}=useKyKeToan()
   const [alert,showAlert,closeAlert]=useAlert()
   const [detail,setDetail]=useState(null)
@@ -3236,7 +3259,8 @@ const PurchaseInvoice=()=>{
     MaNCC:'',NguoiGD:'',DienGiai:'',SoHD:'',NgayHD:today(),HinhThucTT:'Tiền mặt',
     SoPNK:makeNewSoPNK(pnkList)
   })
-  const emptyRows=()=>[{product_id:'',quantity:1,unit_price:0,tax_rate:0}]
+  //const emptyRows=()=>[{product_id:'',quantity:1,unit_price:0,tax_rate:0}]
+  const emptyRows=()=>[{product_id:'',warehouse_id:'',quantity:1,unit_price:0,chi_phi_phan_bo:0}]
 
   const [form,setForm]=useState(()=>makeEmptyForm())
   const [rows,setRows]=useState(emptyRows())
@@ -3254,6 +3278,7 @@ const PurchaseInvoice=()=>{
     api('GET','/suppliers').then(d=>setSuppliers(Array.isArray(d)?d:[]))
     api('GET','/products').then(d=>setProducts(Array.isArray(d)?d:[]))
     api('GET','/documents/phieu-nhap-kho').then(d=>setPnkList(Array.isArray(d)?d:[]))
+    api('GET','/warehouses').then(d=>setWarehouses(Array.isArray(d)?d:[]))
   },[])
 
   useEffect(()=>{
@@ -3279,7 +3304,10 @@ const PurchaseInvoice=()=>{
     setDetailLoading(true)
     setDetail(null)
     const r=await api('GET',`/documents/phieu-nhap-mua/${row.id}`)
-    setDetail(r&&!r.__error?r:{...row,items:[]})
+    const pnkLinked=pnkList.find(p=>String(p.pnm_id)===String(row.id))||null
+    setDetail(r&&!r.__error
+      ?{...r,linkedPNK:pnkLinked,onClickPNK:(pnkId)=>{if(onOpenPnk)onOpenPnk(pnkId)}}
+      :{...row,items:[],linkedPNK:pnkLinked,onClickPNK:(pnkId)=>{if(onOpenPnk)onOpenPnk(pnkId)}})
     setDetailLoading(false)
   }
   const openEdit=(d)=>{
@@ -3297,6 +3325,7 @@ const PurchaseInvoice=()=>{
     const eRows=d.items&&d.items.length>0
       ?d.items.map(i=>({
           product_id:i.product_id,
+          warehouse_id:i.warehouse_id||'',
           quantity:i.quantity||1,
           unit_price:i.unit_price||0,
           chi_phi_phan_bo:i.chi_phi_phan_bo||0,
@@ -3357,7 +3386,7 @@ const PurchaseInvoice=()=>{
           pnm_id: detail.id,
           items: validEditRows.map(r=>({
             product_id: +r.product_id,
-            warehouse_id: linkedPNK.items?.[0]?.warehouse_id||1,
+            warehouse_id: +r.warehouse_id||null,
             quantity: +r.quantity,
             unit_price: +r.unit_price,
             chi_phi_phan_bo: +r.chi_phi_phan_bo||0
@@ -3387,20 +3416,23 @@ const PurchaseInvoice=()=>{
     if(!validRows.length){
       showAlert('Vui lòng thêm ít nhất 1 dòng hàng hóa!','danger'); return
     }
+    if(validRows.some(r=>!r.warehouse_id)){
+      showAlert('Vui lòng chọn Kho Nhập cho tất cả dòng hàng!','danger'); return
+    }
     const body={
       NgayCT:form.NgayCT, SoCT:form.SoCT, MaNCC:+form.MaNCC,
       MaKyKeToan:+form.MaKyKeToan,
       SoHD:form.SoHD||null, NgayHD:form.NgayHD||null,
       NguoiGD:form.NguoiGD||null, DienGiai:form.DienGiai||null,
       HinhThucTT:form.HinhThucTT||null,
-      DanhSachHang:validRows.map(r=>({MaHH:+r.product_id,SoLuong:+r.quantity,DonGia:+r.unit_price,GhiChu:'',ChiPhiPhanBo:+r.chi_phi_phan_bo||0}))
+      DanhSachHang:validRows.map(r=>({MaHH:+r.product_id,SoLuong:+r.quantity,DonGia:+r.unit_price,GhiChu:'',ChiPhiPhanBo:+r.chi_phi_phan_bo||0,MaKho:+r.warehouse_id||null}))
     }
     const r=await api('POST','/documents/phieu-nhap-mua',body)
     if(r&&!r.__error){
       // ✅ Tự động tạo PNK liên kết
       const pnkItems=validRows.map(row=>({
         product_id:+row.product_id,
-        warehouse_id:+row.warehouse_id||1,
+        warehouse_id:+row.warehouse_id||null,
         quantity:+row.quantity,
         unit_price:+row.unit_price,
         chi_phi_phan_bo:+row.chi_phi_phan_bo||0
@@ -3534,7 +3566,7 @@ const PurchaseInvoice=()=>{
       </div>
 
       <p className="text-xs font-bold text-gray-600 mb-2">📦 Danh Sách Hàng Hóa:</p>
-      <DetailTbl rows={editRows} setRows={setEditRows} products={products} color="blue" hasTax={true}/>
+      <DetailTbl rows={editRows} setRows={setEditRows} products={products} warehouses={warehouses} color="blue" hasTax={true} hasWarehouse={true}/>
       <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg flex justify-between items-center">
         <span className="text-sm font-bold text-blue-800">Tổng Thanh Toán:</span>
         <span className="text-lg font-bold text-blue-700 font-mono">
@@ -3634,10 +3666,9 @@ const PurchaseInvoice=()=>{
             className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-[2px] ${detailTab==='chiphi'?'border-orange-500 text-orange-600':'border-transparent text-gray-500 hover:text-gray-700'}`}>
             💰 Chi Phí
           </button>
-        </div>
-
+        </div>        
         {detailTab==='hang'&&<>
-          <DetailTbl rows={rows} setRows={setRows} products={products} color="blue" hasTax={true}/>
+          <DetailTbl rows={rows} setRows={setRows} products={products} warehouses={warehouses} color="blue" hasTax={true} hasWarehouse={true}/>
           {/* Dòng CPMH cố định */}
           <div className={`mt-2 p-3 rounded-lg border-2 ${useCPMH?'border-green-400 bg-blue-50':'border-dashed border-gray-300 bg-gray-50'}`}>
             <div className="flex items-center gap-3">
@@ -4323,6 +4354,15 @@ const DetailModal=({open,onClose,title,detail,loading,products=[],customers=[],s
                 <Badge v={detail.TrangThai==='POSTED'?'success':'warning'}>{detail.TrangThai}</Badge>
               </div>
             )}
+            {detail.linkedPNK&&(
+              <div className="flex gap-2 col-span-2">
+                <span className="text-gray-500 w-28 flex-shrink-0">PNK liên kết:</span>
+                <button onClick={()=>detail.onClickPNK&&detail.onClickPNK(detail.linkedPNK.id)}
+                  className="text-blue-600 hover:underline font-mono text-sm font-semibold">
+                  {detail.linkedPNK.so_phieu_nhap}
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Bảng giao dịch 1 dòng cho PT/PC/TTG/CTG */}
@@ -4484,8 +4524,9 @@ const RetailOrder=()=>{
     setDetailModal(true)
     setDetailLoading(true)
     setDetail(null)
-    const r=await api('GET',`/documents/phieu-ban-le/${row.id}`)
-    setDetail(r&&!r.__error?r:{...row,items:[]})
+    const r=await api('GET',`/documents/phieu-nhap-mua/${row.id}`)
+    const pnkLinked=pnkList.find(p=>String(p.pnm_id)===String(row.id))||null
+    setDetail(r&&!r.__error?{...r,linkedPNK:pnkLinked}:{...row,items:[],linkedPNK:pnkLinked})
     setDetailLoading(false)
   }
   const openEdit=async()=>{
@@ -5691,6 +5732,7 @@ const UnitPage = () => {
 const App=()=>{
   const [page,setPage]=useState('dashboard')
   const [sidebarOpen,setSidebarOpen]=useState(true)
+  const [autoOpenPnkId,setAutoOpenPnkId]=useState(null)
   const render=()=>{
     switch(page){
       case 'dashboard': return <Dashboard onNav={setPage}/>
@@ -5760,10 +5802,10 @@ const App=()=>{
       case 'nv-pc': return <Payments/>
       case 'nv-ttg': return <BankTxn type="nv-ttg"/>
       case 'nv-ctg': return <BankTxn type="nv-ctg"/>
-      case 'nv-pnm': return <PurchaseInvoice/>
+      case 'nv-pnm': return <PurchaseInvoice onOpenPnk={(pnkId)=>{setAutoOpenPnkId(pnkId);setPage('nv-pnk')}}/>
       case 'nv-pbh': return <SalesOrder/>
       case 'nv-bl': return <RetailOrder/>
-      case 'nv-pnk': return <WarehouseReceiptPage/>
+      case 'nv-pnk': return <WarehouseReceiptPage autoOpenPnkId={autoOpenPnkId} onAutoOpenDone={()=>setAutoOpenPnkId(null)}/>
       case 'nv-pxk': return <WarehouseIssuePage/>
       case 'nv-htk': return <HTKFixed/>
       case 'nv-payroll': return <PayrollPageFixed/>

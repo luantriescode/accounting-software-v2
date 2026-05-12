@@ -107,6 +107,7 @@ class PurchaseOrderItem(Base):
     product_id = Column(Integer, ForeignKey("products.id"))
     quantity = Column(Integer, nullable=False)
     unit_price = Column(Numeric(15, 2), nullable=False)
+    warehouse_id = Column(Integer, ForeignKey("warehouses.id"), nullable=True)
     chi_phi_phan_bo = Column(Numeric(15, 2), default=0)
     notes = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
