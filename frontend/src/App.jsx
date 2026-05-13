@@ -1167,7 +1167,7 @@ const WarehouseReceiptPage=({autoOpenPnkId=null,onAutoOpenDone=null})=>{
 }
 
 // ══ PHIẾU XUẤT KHO - có form tạo + Excel
-const WarehouseIssuePage=()=>{
+const WarehouseIssuePage=({autoOpenPxkId=null,onAutoOpenDone=null})=>{
   const [data,loading,load]=useList('/documents/phieu-xuat-kho')
   const [tab,setTab]=useState('list')
   const [warehouses,setWarehouses]=useState([])
@@ -1212,6 +1212,17 @@ const WarehouseIssuePage=()=>{
     api('GET','/products').then(d=>setProducts(Array.isArray(d)?d:[]))
     api('GET','/customers').then(d=>setCustomers(Array.isArray(d)?d:[]))
   },[])
+  useEffect(()=>{
+    if(autoOpenPxkId){
+      api('GET',`/documents/phieu-xuat-kho/${autoOpenPxkId}`).then(r=>{
+        if(r&&!r.__error){
+          setDetail(r)
+          setDetailModal(true)
+        }
+        if(onAutoOpenDone) onAutoOpenDone()
+      })
+    }
+  },[autoOpenPxkId])
 
   useEffect(()=>{
     if(!loading&&tab==='list') setForm(f=>({...f,so_phieu_xuat:makeNewSoCT(data)}))
@@ -3865,7 +3876,7 @@ const PurchaseInvoice=({onNav,onOpenPnk})=>{
 }
 
 // PHIẾU BÁN HÀNG - tương tự PNM nhưng dùng MaKH thay MaNCC
-const SalesOrder=()=>{
+const SalesOrder=({onOpenPxk})=>{
   const [data,loading,load]=useList('/documents/phieu-ban-hang')
   const [tab,setTab]=useState('list')
   const [customers,setCustomers]=useState([])
@@ -3941,7 +3952,10 @@ const SalesOrder=()=>{
     setDetailLoading(true)
     setDetail(null)
     const r=await api('GET',`/documents/phieu-ban-hang/${row.id}`)
-    setDetail(r&&!r.__error?r:{...row,items:[]})
+    const pxkLinked=pxkList.find(p=>String(p.pbh_id)===String(row.id))||null
+    setDetail(r&&!r.__error
+      ?{...r,linkedPXK:pxkLinked,onClickPXK:(pxkId)=>{if(onOpenPxk)onOpenPxk(pxkId)}}
+      :{...row,items:[],linkedPXK:pxkLinked,onClickPXK:(pxkId)=>{if(onOpenPxk)onOpenPxk(pxkId)}})
     setDetailLoading(false)
   }
   // Thêm 10/05/2026
@@ -4364,6 +4378,15 @@ const DetailModal=({open,onClose,title,detail,loading,products,customers,supplie
                 </button>
               </div>
             )}
+            {detail.linkedPXK&&(
+              <div className="flex gap-2 col-span-2">
+                <span className="text-gray-500 w-28 flex-shrink-0">PXK liên kết:</span>
+                <button onClick={()=>detail.onClickPXK&&detail.onClickPXK(detail.linkedPXK.id)}
+                  className="text-blue-600 hover:underline font-mono text-sm font-semibold">
+                  {detail.linkedPXK.so_phieu_xuat}
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Bảng giao dịch 1 dòng cho PT/PC/TTG/CTG */}
@@ -4466,7 +4489,7 @@ const DetailModal=({open,onClose,title,detail,loading,products,customers,supplie
   )
 }
 // PHIẾU BÁN LẺ
-const RetailOrder=()=>{
+const RetailOrder=({onOpenPxk})=>{
   const [data,loading,load]=useList('/documents/phieu-ban-le')
   const [tab,setTab]=useState('list')
   const [products,setProducts]=useState([])
@@ -4530,8 +4553,11 @@ const RetailOrder=()=>{
     setDetailLoading(true)
     setDetail(null)
     const r=await api('GET',`/documents/phieu-ban-le/${row.id}`)
-    const pxkLinked=pxkList.find(p=>String(p.bl_id)===String(row.id))||null
-    setDetail(r&&!r.__error?{...r,linkedPXK:pxkLinked}:{...row,items:[],linkedPXK:pxkLinked})
+    const pxkLinked=pxkList.find(p=>String(p.bl_id)===String(row.id))
+      ||pxkList.find(p=>p.so_phieu_xuat===r?.SoPXK)||null
+    setDetail(r&&!r.__error
+      ?{...r,linkedPXK:pxkLinked,onClickPXK:(pxkId)=>{if(onOpenPxk)onOpenPxk(pxkId)}}
+      :{...row,items:[],linkedPXK:pxkLinked,onClickPXK:(pxkId)=>{if(onOpenPxk)onOpenPxk(pxkId)}})
     setDetailLoading(false)
   }
   const openEdit=async()=>{
@@ -5737,6 +5763,7 @@ const App=()=>{
   const [page,setPage]=useState('dashboard')
   const [sidebarOpen,setSidebarOpen]=useState(true)
   const [autoOpenPnkId,setAutoOpenPnkId]=useState(null)
+  const [autoOpenPxkId,setAutoOpenPxkId]=useState(null)
   const render=()=>{
     switch(page){
       case 'dashboard': return <Dashboard onNav={setPage}/>
@@ -5807,10 +5834,10 @@ const App=()=>{
       case 'nv-ttg': return <BankTxn type="nv-ttg"/>
       case 'nv-ctg': return <BankTxn type="nv-ctg"/>
       case 'nv-pnm': return <PurchaseInvoice onOpenPnk={(pnkId)=>{setAutoOpenPnkId(pnkId);setPage('nv-pnk')}}/>
-      case 'nv-pbh': return <SalesOrder/>
-      case 'nv-bl': return <RetailOrder/>
+      case 'nv-pbh': return <SalesOrder onOpenPxk={(id)=>{setAutoOpenPxkId(id);setPage('nv-pxk')}}/>
+      case 'nv-bl': return <RetailOrder onOpenPxk={(id)=>{setAutoOpenPxkId(id);setPage('nv-pxk')}}/>
       case 'nv-pnk': return <WarehouseReceiptPage autoOpenPnkId={autoOpenPnkId} onAutoOpenDone={()=>setAutoOpenPnkId(null)}/>
-      case 'nv-pxk': return <WarehouseIssuePage/>
+      case 'nv-pxk': return <WarehouseIssuePage autoOpenPxkId={autoOpenPxkId} onAutoOpenDone={()=>setAutoOpenPxkId(null)}/>
       case 'nv-htk': return <HTKFixed/>
       case 'nv-payroll': return <PayrollPageFixed/>
       case 'nv-payroll-config': return <PayrollConfig/>
