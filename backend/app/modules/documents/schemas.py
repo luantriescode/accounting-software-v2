@@ -134,6 +134,7 @@ class PhieuBanHangItemCreate(BaseModel):
     SoLuong: int
     DonGia: float
     GhiChu: Optional[str] = None
+    MaKho: Optional[int] = None
 
 class PhieuBanHangCreate(BaseModel):
     SoCT: str
@@ -162,6 +163,7 @@ class PhieuBanLeItemCreate(BaseModel):
     MaHH: int
     SoLuong: int
     DonGia: float
+    MaKho: Optional[int] = None
 
 class PhieuBanLeCreate(BaseModel):
     SoCT: str

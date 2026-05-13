@@ -603,7 +603,8 @@ def create_phieu_ban_hang(data: PhieuBanHangCreate, db: Session = Depends(get_db
             product_id=item.MaHH,
             quantity=item.SoLuong,
             unit_price=item.DonGia,
-            notes=item.GhiChu
+            notes=item.GhiChu,
+            warehouse_id=item.MaKho or None
         )
         db.add(soi)
 
@@ -664,6 +665,7 @@ def get_phieu_ban_hang_detail(doc_id: int, db: Session = Depends(get_db)):
         "TrangThai": d.status,
         "items": [{"product_id": i.product_id, "quantity": i.quantity,
                    "unit_price": float(i.unit_price),
+                   "warehouse_id": i.warehouse_id,
                    "total": float(i.quantity * i.unit_price)} for i in items]
     }
 # Thêm 10/05/2026
@@ -702,7 +704,8 @@ def update_phieu_ban_hang(doc_id: int, data: PhieuBanHangCreate, db: Session = D
             product_id=hang.MaHH,
             quantity=hang.SoLuong,
             unit_price=hang.DonGia,
-            notes=hang.GhiChu
+            notes=hang.GhiChu,
+            warehouse_id=hang.MaKho or None
         )
         db.add(item)
 
@@ -748,7 +751,8 @@ def create_phieu_ban_le(data: PhieuBanLeCreate, db: Session = Depends(get_db)):
             retail_order_id=doc.id,
             product_id=item.MaHH,
             quantity=item.SoLuong,
-            unit_price=item.DonGia
+            unit_price=item.DonGia,
+            warehouse_id=item.MaKho or None
         )
         db.add(roi)
 
@@ -829,6 +833,7 @@ def get_phieu_ban_le_detail(doc_id: int, db: Session = Depends(get_db)):
         "items": [
             {
                 "product_id": i.product_id,
+                "warehouse_id": i.warehouse_id,
                 "quantity": i.quantity,
                 "unit_price": float(i.unit_price),
                 "total": float(i.quantity * i.unit_price)
@@ -866,11 +871,12 @@ def update_phieu_ban_le(doc_id: int, data: PhieuBanLeCreate, db: Session = Depen
 
     for item in data.DanhSachHang:
         db.add(RetailOrderItem(
-            retail_order_id=doc_id,
-            product_id=item.MaHH,
-            quantity=item.SoLuong,
-            unit_price=item.DonGia
-        ))
+                retail_order_id=doc_id,
+                product_id=item.MaHH,
+                quantity=item.SoLuong,
+                unit_price=item.DonGia,
+                warehouse_id=item.MaKho or None
+            ))
 
     db.commit()
     return {"message": "Cập nhật phiếu bán lẻ thành công", "id": doc_id}

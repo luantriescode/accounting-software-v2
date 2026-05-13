@@ -263,16 +263,15 @@ def create_phieu_xuat_kho(data: PhieuXuatKhoCreate, db: Session = Depends(get_db
         db.add(pxk_item)
     
     db.commit()
-    db.refresh(pxk)
     
     return PhieuXuatKhoResponse(
         id=pxk.id,
         so_phieu_xuat=pxk.so_phieu_xuat,
         ngay_phieu_xuat=pxk.ngay_phieu_xuat,
         khach_hang_id=pxk.khach_hang_id,
-        tong_so_luong=pxk.tong_so_luong,
-        tong_tien=float(pxk.tong_tien),
-        trang_thai=pxk.trang_thai
+        tong_so_luong=tong_so_luong,
+        tong_tien=float(tong_tien),
+        trang_thai="DRAFT"
     )
 @router.get("/documents/phieu-xuat-kho/{pxk_id}")
 def get_phieu_xuat_kho_detail(pxk_id: int, db: Session = Depends(get_db)):

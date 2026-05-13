@@ -344,7 +344,7 @@ const Topbar=({page, onNav, onToggleSidebar, sidebarOpen})=>{
 }
 
 // ══ DETAIL TABLE for invoices
-const DetailTbl=({rows,setRows,products,warehouses=[],color='blue',hasTax=false,hasWarehouse=false})=>{
+const DetailTbl=({rows,setRows,products,warehouses=[],color='blue',hasTax=false,hasWarehouse=false,warehouseLabel='Kho'})=>{
   const addRow=()=>setRows(r=>[...r,{product_id:'',quantity:1,unit_price:0,tax_rate:0}])
   const upd=(i,k,v)=>setRows(rs=>rs.map((r,ri)=>ri===i?{...r,[k]:v}:r))
   const del=(i)=>setRows(rs=>rs.filter((_,ri)=>ri!==i))
@@ -356,7 +356,7 @@ const DetailTbl=({rows,setRows,products,warehouses=[],color='blue',hasTax=false,
         <thead className={`bg-${color}-50`}><tr>
           <th className={`px-3 py-2 text-left text-xs font-bold text-${color}-700 w-28`}>Mã Hàng</th>
           <th className={`px-3 py-2 text-left text-xs font-bold text-${color}-700`}>Tên Hàng Hóa</th>
-          {hasWarehouse&&<th className={`px-3 py-2 text-left text-xs font-bold text-${color}-700 w-28`}>Kho Nhập</th>}
+          {hasWarehouse&&<th className={`px-3 py-2 text-left text-xs font-bold text-${color}-700 w-28`}>{warehouseLabel}</th>}
           <th className={`px-3 py-2 text-right text-xs font-bold text-${color}-700 w-24`}>SL</th>
           <th className={`px-3 py-2 text-right text-xs font-bold text-${color}-700 w-32`}>Đơn Giá</th>
           <th className="px-2 py-2 text-right text-xs font-bold text-orange-500 w-24">CPMH</th>
@@ -3668,7 +3668,7 @@ const PurchaseInvoice=({onNav,onOpenPnk})=>{
           </button>
         </div>        
         {detailTab==='hang'&&<>
-          <DetailTbl rows={rows} setRows={setRows} products={products} warehouses={warehouses} color="blue" hasTax={true} hasWarehouse={true}/>
+          <DetailTbl rows={rows} setRows={setRows} products={products} warehouses={warehouses} color="blue" hasTax={true} hasWarehouse={true} warehouseLabel="Kho Nhập"/>
           {/* Dòng CPMH cố định */}
           <div className={`mt-2 p-3 rounded-lg border-2 ${useCPMH?'border-green-400 bg-blue-50':'border-dashed border-gray-300 bg-gray-50'}`}>
             <div className="flex items-center gap-3">
@@ -3908,10 +3908,9 @@ const SalesOrder=()=>{
 
   const makeEmptyForm=(list=[],pxkL=[])=>({
     SoCT:makeNewSoCT(list),NgayCT:today(),MaKyKeToan:kyDefault,
-    MaKH:'',NguoiGD:'',DienGiai:'',SoHD:'',NgayHD:today(),HinhThucTT:'Tiền mặt',
-    KhoXuat:'',SoPXK:makeNewSoPXK(pxkL)
+    MaKH:'',NguoiGD:'',DienGiai:'',SoHD:'',NgayHD:today(),HinhThucTT:'Tiền mặt',    
   })
-  const emptyRows=()=>[{product_id:'',quantity:1,unit_price:0}]
+  const emptyRows=()=>[{product_id:'',warehouse_id:'',quantity:1,unit_price:0}]
 
   const [pxkList,setPxkList]=useState([])
   const [form,setForm]=useState(()=>makeEmptyForm())
@@ -3959,10 +3958,7 @@ const SalesOrder=()=>{
       HinhThucTT: d.HinhThucTT||'Tiền mặt',
       KhoXuat: d.KhoXuat||''
     })
-    setEditRows(d.items&&d.items.length>0
-      ?d.items.map(i=>({product_id:i.product_id||i.MaHH,quantity:i.quantity||i.SoLuong||1,unit_price:i.unit_price||i.DonGia||0,tax_rate:0}))
-      :[{product_id:'',quantity:1,unit_price:0,tax_rate:0}]
-    )
+    setEditRows((detail.items||[]).map(i=>({product_id:i.product_id,warehouse_id:i.warehouse_id||'',quantity:i.quantity,unit_price:i.unit_price})))
     setEditModal(true)
   }
 
@@ -3979,7 +3975,7 @@ const SalesOrder=()=>{
       NguoiGD:editForm.NguoiGD||null, DienGiai:editForm.DienGiai||null,
       SoHD:editForm.SoHD||null, NgayHD:editForm.NgayHD||null,
       HinhThucTT:editForm.HinhThucTT||null,
-      DanhSachHang:validEditRows.map(r=>({MaHH:+r.product_id,SoLuong:+r.quantity,DonGia:+r.unit_price,GhiChu:''}))
+      DanhSachHang:validEditRows.map(r=>({MaHH:+r.product_id,SoLuong:+r.quantity,DonGia:+r.unit_price,GhiChu:'',MaKho:+r.warehouse_id||null}))
     }
     const r=await api('PUT',`/documents/phieu-ban-hang/${detail.id}`,body)
     if(r&&!r.__error){
@@ -3999,7 +3995,7 @@ const SalesOrder=()=>{
           pbh_id: detail.id,
           items: validEditRows.map(row=>({
             product_id:+row.product_id,
-            warehouse_id:linkedPXK.items?.[0]?.warehouse_id||+editForm.KhoXuat||1,
+            warehouse_id:+row.warehouse_id||null,
             quantity:+row.quantity,
             unit_price:+row.unit_price
           }))
@@ -4039,12 +4035,13 @@ const SalesOrder=()=>{
       SoHD:form.SoHD,NgayHD:form.NgayHD,NguoiGD:form.NguoiGD,
       DienGiai:form.DienGiai,MaKyKeToan:+form.MaKyKeToan,HinhThucTT:form.HinhThucTT,
       SoPXK:form.SoPXK||null,
-      DanhSachHang:validRows.map(r=>({MaHH:+r.product_id,SoLuong:+r.quantity,DonGia:+r.unit_price,GhiChu:''}))
+      DanhSachHang:validRows.map(r=>({MaHH:+r.product_id,SoLuong:+r.quantity,DonGia:+r.unit_price,GhiChu:'',MaKho:+r.warehouse_id||null}))
     }
     const r=await api('POST','/documents/phieu-ban-hang',body)
     if(r&&!r.__error){
       // Tự động tạo PXK nếu có chọn kho
-      if(form.KhoXuat && form.SoPXK){
+      const rowsWithKho=validRows.filter(row=>row.warehouse_id)
+      if(rowsWithKho.length>0&&form.SoPXK){
         try{
           const pxkBody={
             so_phieu_xuat: form.SoPXK,
@@ -4054,9 +4051,9 @@ const SalesOrder=()=>{
             dien_giai: `Xuất kho cho ${form.SoCT}`,
             ky_ke_toan_id: +form.MaKyKeToan,
             pbh_id: r.id,
-            items: validRows.map(row=>({
+            items: rowsWithKho.map(row=>({
               product_id:+row.product_id,
-              warehouse_id:+form.KhoXuat,
+              warehouse_id:+row.warehouse_id,
               quantity:+row.quantity,
               unit_price:+row.unit_price
             }))
@@ -4091,7 +4088,7 @@ const SalesOrder=()=>{
     {/* Modal xem chi tiết */}
     <DetailModal open={detailModal} onClose={()=>{setDetailModal(false);setDetail(null)}}
       title={`🏪 Chi Tiết Phiếu Bán Hàng - ${detail?.SoCT||''}`}
-      detail={detail} loading={detailLoading} products={products} customers={customers} suppliers={[]}
+      detail={detail} loading={detailLoading} products={products} customers={customers} suppliers={[]} warehouses={warehouses}
       onEdit={detail?()=>openEdit(detail):null}/>
 
     {editModal&&editForm&&<Modal open={editModal} onClose={()=>setEditModal(false)}
@@ -4114,7 +4111,7 @@ const SalesOrder=()=>{
         </div>
       </div>
       <p className="text-xs font-bold text-gray-600 mb-2">📦 Danh Sách Hàng Hóa:</p>
-      <DetailTbl rows={editRows} setRows={setEditRows} products={products} color="green"/>
+      <DetailTbl rows={editRows} setRows={setEditRows} products={products} warehouses={warehouses} color="green" hasWarehouse={true}/>
       <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg flex justify-between items-center">
         <span className="text-sm font-bold text-green-800">Tổng Thanh Toán:</span>
         <span className="text-lg font-bold text-green-700 font-mono">
@@ -4225,15 +4222,13 @@ const SalesOrder=()=>{
           <Inp label="Số HĐ" value={form.SoHD} onChange={sf('SoHD')} placeholder="Số thứ tự HĐ"/>
           <Inp label="Ngày HĐ" type="date" value={form.NgayHD} onChange={sf('NgayHD')}/>
           <Inp label="Người Giao Dịch" value={form.NguoiGD} onChange={sf('NguoiGD')}/>
-          <Sel label="🏭 Kho Xuất (tạo PXK tự động)" value={form.KhoXuat} onChange={sf('KhoXuat')}
-            options={[{value:'',label:'-- Không tạo PXK --'},...(warehouses||[]).map(w=>({value:w.id,label:`${w.MaKho||w.code} - ${w.TenKho||w.name||w.ten_kho||''}`}))]}/>
           <div className="col-span-2">
             <Inp label="Diễn Giải" value={form.DienGiai} onChange={sf('DienGiai')}/>
           </div>
         </div>
 
         <p className="text-xs font-bold text-gray-600 mb-2">Danh Sách Hàng Hóa:</p>
-        <DetailTbl rows={rows} setRows={setRows} products={products} color="green"/>
+        <DetailTbl rows={rows} setRows={setRows} products={products} warehouses={warehouses} color="green" hasWarehouse={true} warehouseLabel="Kho Xuất"/>
 
         <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg flex justify-between items-center">
           <span className="text-sm font-semibold text-green-800">Tổng Thanh Toán:</span>
@@ -4251,7 +4246,7 @@ const SalesOrder=()=>{
     </Card>}
   </div>)
 }
-const DetailModal=({open,onClose,title,detail,loading,products=[],customers=[],suppliers=[],onEdit})=>{
+const DetailModal=({open,onClose,title,detail,loading,products,customers,suppliers,onEdit,warehouses=[]})=>{
   if(!open) return null
 
   const getProductName=(id)=>{
@@ -4259,11 +4254,17 @@ const DetailModal=({open,onClose,title,detail,loading,products=[],customers=[],s
     const p=(products||[]).find(x=>String(x.id)===String(id))
     return p?`${p.MaHH||p.code||''} - ${p.TenHH||p.name||''}`:`SP #${id}`
   }
+  const getWarehouseName=(id)=>{
+    if(!id) return null
+    const w=warehouses.find(x=>String(x.id)===String(id))
+    return w?w.MaKho||w.code:null
+  }
   const getKHName=(id)=>{
     if(!id) return '-'
     const c=(customers||[]).find(x=>String(x.id)===String(id))
     return c?`${c.TenKH||c.name||''} (${c.MaKH||c.code||''})`:`KH #${id}`
   }
+
   const getNCCName=(id)=>{
     if(!id) return '-'
     const s=(suppliers||[]).find(x=>String(x.id)===String(id))
@@ -4418,6 +4419,7 @@ const DetailModal=({open,onClose,title,detail,loading,products=[],customers=[],s
                     <tr>
                       <th className="px-3 py-2 text-left text-xs font-bold text-gray-600 w-10">STT</th>
                       <th className="px-3 py-2 text-left text-xs font-bold text-gray-600">Hàng Hóa</th>
+                      {items.some(i=>i.warehouse_id)&&<th className="px-3 py-2 text-left text-xs font-bold text-gray-600 w-20">Kho</th>}
                       <th className="px-3 py-2 text-right text-xs font-bold text-gray-600 w-16">SL</th>
                       <th className="px-2 py-2 text-right text-xs font-bold w-28">Đơn Giá</th>
                       <th className="px-2 py-2 text-right text-xs font-bold w-24 text-orange-600">CPMH</th>
@@ -4429,6 +4431,9 @@ const DetailModal=({open,onClose,title,detail,loading,products=[],customers=[],s
                       <tr key={i} className="hover:bg-gray-50">
                         <td className="px-3 py-2.5 text-center text-gray-400 text-xs">{i+1}</td>
                         <td className="px-3 py-2.5 font-medium">{getProductName(item.product_id||item.MaHH)}</td>
+                        {items.some(i=>i.warehouse_id)&&<td className="px-3 py-2.5 text-xs">
+                          <span className="bg-gray-100 px-2 py-0.5 rounded font-mono">{getWarehouseName(item.warehouse_id)||'-'}</span>
+                        </td>}
                         <td className="px-3 py-2.5 text-right font-mono">{fmtN(item.quantity||item.SoLuong||0)}</td>
                         <td className="px-3 py-2.5 text-right font-mono">{fmtN(item.unit_price||item.DonGia||0)}</td>
                         <td className="px-3 py-2.5 text-right font-mono text-orange-500">
@@ -4502,9 +4507,9 @@ const RetailOrder=()=>{
   const makeEmptyForm=(list=[],pxkL=[])=>({
     SoCT:makeNewSoCT(list),NgayCT:today(),MaKyKeToan:kyDefault,
     KhachHang:'',DienGiai:'',SoHD:'',KyHieuHD:'',TrangThaiHDDT:'CHUA_PH',
-    KhoXuat:'',SoPXK:makeNewSoPXK(pxkL,list)
+    SoPXK:makeNewSoPXK(pxkL,list)
   })
-  const emptyRows=()=>[{product_id:'',quantity:1,unit_price:0}]
+  const emptyRows=()=>[{product_id:'',warehouse_id:'',quantity:1,unit_price:0}]
 
   const [form,setForm]=useState(()=>makeEmptyForm())
   const [rows,setRows]=useState(emptyRows())
@@ -4524,9 +4529,9 @@ const RetailOrder=()=>{
     setDetailModal(true)
     setDetailLoading(true)
     setDetail(null)
-    const r=await api('GET',`/documents/phieu-nhap-mua/${row.id}`)
-    const pnkLinked=pnkList.find(p=>String(p.pnm_id)===String(row.id))||null
-    setDetail(r&&!r.__error?{...r,linkedPNK:pnkLinked}:{...row,items:[],linkedPNK:pnkLinked})
+    const r=await api('GET',`/documents/phieu-ban-le/${row.id}`)
+    const pxkLinked=pxkList.find(p=>String(p.bl_id)===String(row.id))||null
+    setDetail(r&&!r.__error?{...r,linkedPXK:pxkLinked}:{...row,items:[],linkedPXK:pxkLinked})
     setDetailLoading(false)
   }
   const openEdit=async()=>{
@@ -4556,6 +4561,7 @@ const RetailOrder=()=>{
     })
     setEditRows((detail.items||[]).map(i=>({
       product_id:i.product_id,
+      warehouse_id:i.warehouse_id||'',
       quantity:i.quantity,
       unit_price:i.unit_price
     })))
@@ -4574,7 +4580,7 @@ const saveEdit=async()=>{
       DienGiai:editForm.DienGiai||null,
       SoHD:editForm.SoHD||null,
       SoPXK:editForm.SoPXK||null,
-      DanhSachHang:validEditRows.map(r=>({MaHH:+r.product_id,SoLuong:+r.quantity,DonGia:+r.unit_price}))
+      DanhSachHang:validEditRows.map(r=>({MaHH:+r.product_id,SoLuong:+r.quantity,DonGia:+r.unit_price,MaKho:+r.warehouse_id||null}))
     }
     const r=await api('PUT',`/documents/phieu-ban-le/${detail.id}`,body)
     if(r&&!r.__error){
@@ -4594,16 +4600,17 @@ const saveEdit=async()=>{
             dien_giai:linkedPXK.dien_giai||`Xuất kho cho ${editForm.SoCT}`,
             ky_ke_toan_id:+editForm.MaKyKeToan,
             bl_id:detail.id,
-            items:validEditRows.map(row=>({
+            items:validEditRows.filter(row=>row.warehouse_id).map(row=>({
               product_id:+row.product_id,
-              warehouse_id:editForm.KhoXuat?+editForm.KhoXuat:(linkedPXK.items?.[0]?.warehouse_id||1),
+              warehouse_id:+row.warehouse_id,
               quantity:+row.quantity,
               unit_price:+row.unit_price
             }))
           }
           await api('PUT',`/documents/phieu-xuat-kho/${linkedPXK.id}`,pxkBody)
           showAlert('Cập nhật BL thành công! Đã sync PXK liên kết.')
-        } else if(editForm.KhoXuat&&editForm.SoPXK){
+        } else if(validEditRows.some(r=>r.warehouse_id)&&editForm.SoPXK){
+          const rowsWithKho=validEditRows.filter(r=>r.warehouse_id)
           const pxkBody={
             so_phieu_xuat:editForm.SoPXK,
             ngay_phieu_xuat:editForm.NgayCT,
@@ -4611,12 +4618,12 @@ const saveEdit=async()=>{
             khach_hang_id:null,
             ten_khach_le:editForm.KhachHang||'Khách lẻ',
             nguoi_giao_dich:null,
-            dien_giai:`Xuất kho cho ${editForm.SoCT}`,
+            dien_giai:'Xuất kho cho '+editForm.SoCT,
             ky_ke_toan_id:+editForm.MaKyKeToan,
             bl_id:detail.id,
-            items:validEditRows.map(row=>({
+            items:rowsWithKho.map(row=>({
               product_id:+row.product_id,
-              warehouse_id:+editForm.KhoXuat,
+              warehouse_id:+row.warehouse_id,
               quantity:+row.quantity,
               unit_price:+row.unit_price
             }))
@@ -4643,11 +4650,12 @@ const saveEdit=async()=>{
       SoCT:form.SoCT,NgayCT:form.NgayCT,KhachHang:form.KhachHang,
       DienGiai:form.DienGiai,MaKyKeToan:+form.MaKyKeToan,
       SoPXK:form.SoPXK||null,
-      DanhSachHang:validRows.map(r=>({MaHH:+r.product_id,SoLuong:+r.quantity,DonGia:+r.unit_price}))
+      DanhSachHang:validRows.map(r=>({MaHH:+r.product_id,SoLuong:+r.quantity,DonGia:+r.unit_price,MaKho:+r.warehouse_id||null}))
     }
     const r=await api('POST','/documents/phieu-ban-le',body)
     if(r&&!r.__error){
-      if(form.KhoXuat&&form.SoPXK){
+      const rowsWithKho=validRows.filter(row=>row.warehouse_id)
+      if(rowsWithKho.length>0&&form.SoPXK){
         try{
           const pxkBody={
             so_phieu_xuat:form.SoPXK,
@@ -4659,9 +4667,9 @@ const saveEdit=async()=>{
             dien_giai:`Xuất kho cho ${form.SoCT}`,
             ky_ke_toan_id:+form.MaKyKeToan,
             bl_id:r.id,
-            items:validRows.map(row=>({
+            items:rowsWithKho.map(row=>({
               product_id:+row.product_id,
-              warehouse_id:+form.KhoXuat,
+              warehouse_id:+row.warehouse_id,
               quantity:+row.quantity,
               unit_price:+row.unit_price
             }))
@@ -4695,7 +4703,7 @@ const saveEdit=async()=>{
     {alert&&<Alert msg={alert.msg} type={alert.type} onClose={closeAlert}/>}
     <DetailModal open={detailModal} onClose={()=>{setDetailModal(false);setDetail(null)}}
       title={`🛍️ Chi Tiết Phiếu Bán Lẻ - ${detail?.SoCT||''}`}
-      detail={detail} loading={detailLoading} products={products} customers={[]} suppliers={[]}
+      detail={detail} loading={detailLoading} products={products} customers={[]} suppliers={[]} warehouses={warehouses}
       onEdit={detail?openEdit:null}/>
     {editModal&&editForm&&<Modal open={editModal} onClose={()=>setEditModal(false)}
       title={`✏️ Sửa Phiếu Bán Lẻ - ${editForm.SoCT}`} size="xl">
@@ -4709,14 +4717,12 @@ const saveEdit=async()=>{
           </div>
           <Inp label="Số HĐ" value={editForm.SoHD} onChange={sef('SoHD')}/>
           <Inp label="Số PXK" value={editForm.SoPXK} onChange={sef('SoPXK')} hint="Từ lúc tạo BL"/>
-          <Sel label="🏭 Kho Xuất" value={editForm.KhoXuat} onChange={sef('KhoXuat')}
-            options={[{value:'',label:'-- Không đổi kho --'},...warehouses.map(w=>({value:w.id,label:`${w.MaKho||w.code} - ${w.TenKho||w.name}`}))]}/>
           <div className="col-span-3">
             <Inp label="Diễn Giải" value={editForm.DienGiai} onChange={sef('DienGiai')}/>
           </div>
         </div>
         <p className="text-xs font-bold text-gray-600">Danh Sách Hàng Hóa:</p>
-        <DetailTbl rows={editRows} setRows={setEditRows} products={products} color="yellow"/>
+        <DetailTbl rows={editRows} setRows={setEditRows} products={products} warehouses={warehouses} color="yellow" hasWarehouse={true} warehouseLabel="Kho Xuất"/>
       </div>
       <div className="flex justify-end gap-2 px-4 pb-4">
         <Btn v="outline" onClick={()=>setEditModal(false)}>Hủy</Btn>
@@ -4770,12 +4776,10 @@ const saveEdit=async()=>{
             <Inp label="Khách Hàng" value={form.KhachHang} onChange={sf('KhachHang')} placeholder="Tên khách (không bắt buộc)"/>
           </div>
           <Inp label="Số PXK" value={form.SoPXK} onChange={sf('SoPXK')} hint="Tự sinh"/>
-          <Sel label="🏭 Kho Xuất (tạo PXK tự động)" value={form.KhoXuat} onChange={sf('KhoXuat')}
-            options={[{value:'',label:'-- Không tạo PXK --'},...warehouses.map(w=>({value:w.id,label:`${w.MaKho||w.code} - ${w.TenKho||w.name}`}))]}/>
           <div className="col-span-2"><Inp label="Diễn Giải" value={form.DienGiai} onChange={sf('DienGiai')}/></div>
         </div>
         <p className="text-xs font-bold text-gray-600 mb-2">Danh Sách Hàng Hóa:</p>
-        <DetailTbl rows={rows} setRows={setRows} products={products} color="yellow"/>
+        <DetailTbl rows={rows} setRows={setRows} products={products} warehouses={warehouses} color="yellow" hasWarehouse={true} warehouseLabel="Kho Xuất"/>
         <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg flex justify-between items-center">
           <span className="text-sm font-semibold text-yellow-800">Tổng Thanh Toán:</span>
           <span className="text-xl font-bold text-yellow-700 font-mono">{fmt(total)}</span>
