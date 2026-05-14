@@ -139,6 +139,44 @@ def calculate_inventory_valuation(
         total_closing_value=total_closing_value,
         details=details
     )
+@router.get("/inventory/gia-von")
+def get_gia_von(period_id: int, product_ids: str = "", db: Session = Depends(get_db)):
+    """Lấy giá vốn từ kết quả tính giá HTK theo kỳ kế toán"""
+    from app.modules.catalog.models import FiscalPeriod
+    
+    period = db.query(FiscalPeriod).filter(FiscalPeriod.id == period_id).first()
+    if not period:
+        return []
+    print(f"DEBUG period: id={period.id} start={period.start_date} end={period.end_date}")
+    
+    # Parse product_ids
+    pids = [int(x) for x in product_ids.split(',') if x.strip().isdigit()]
+    
+    # Query kết quả tính giá mới nhất theo period_from/to
+    query = db.query(InventoryValuationResult).filter(
+        InventoryValuationResult.period_from <= period.start_date,
+        InventoryValuationResult.period_to >= period.start_date
+    )
+    if pids:
+        query = query.filter(InventoryValuationResult.product_id.in_(pids))
+    
+    results = query.order_by(InventoryValuationResult.calculated_at.desc()).all()
+    
+    # Group by product_id, lấy kết quả mới nhất
+    seen = {}
+    for r in results:
+        if r.product_id not in seen:
+            seen[r.product_id] = r
+    
+    return [
+        {
+            "product_id": r.product_id,
+            "unit_price": float(r.unit_price or 0),
+            "valuation_method": r.valuation_method,
+            "calculated_at": str(r.calculated_at)
+        }
+        for r in seen.values()
+    ]
 
 
 # ============ BÁO CÁO TỒN KHO ============
