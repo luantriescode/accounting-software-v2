@@ -31,7 +31,7 @@ const useKyKeToan = () => {
     ? kyList.map(k => ({ value: k.id, label: `${k.TenKy} (${k.NgayBatDau?.slice(0,7)})` }))
     : [{value:1,label:'Tháng 1/2026'},{value:2,label:'Tháng 2/2026'},{value:3,label:'Tháng 3/2026'},
        {value:4,label:'Tháng 4/2026'},{value:5,label:'Tháng 5/2026'},{value:6,label:'Tháng 6/2026'}]
-  const defaultKy = kyList.length ? (kyList.find(k=>k.MaKy===new Date().toISOString().slice(0,7))?.id || kyList[kyList.length-1].id) : 1
+  const defaultKy = kyList.length ? kyList[0].id : 1
   return { kyList, options, defaultKy }
 }
 
@@ -3919,28 +3919,14 @@ const SalesOrder=({onOpenPxk})=>{
 
   const makeEmptyForm=(list=[],pxkL=[])=>({
     SoCT:makeNewSoCT(list),NgayCT:today(),MaKyKeToan:kyDefault,
-    MaKH:'',NguoiGD:'',DienGiai:'',SoHD:'',NgayHD:today(),HinhThucTT:'Tiền mặt',
-    SoSeri:'',KyHieuHD:'',
-    SoPXK:makeNewSoPXK(pxkL,list)
+    MaKH:'',NguoiGD:'',DienGiai:'',SoHD:'',NgayHD:today(),HinhThucTT:'Tiền mặt',    
   })
   const emptyRows=()=>[{product_id:'',warehouse_id:'',quantity:1,unit_price:0}]
 
   const [pxkList,setPxkList]=useState([])
-  const [formTab,setFormTab]=useState('hang')
-  const [giaVonRows,setGiaVonRows]=useState([])
-  const [giaVonLoading,setGiaVonLoading]=useState(false)
   const [form,setForm]=useState(()=>makeEmptyForm())
   const [rows,setRows]=useState(emptyRows())
   const sf=k=>e=>setForm(f=>({...f,[k]:e.target.value}))
-  const loadGiaVon=async(kyId)=>{
-    if(!kyId) return
-    setGiaVonLoading(true)
-    console.log('loadGiaVon kyId:', kyId)
-    const d=await api('GET',`/inventory/gia-von?period_id=${kyId}`)
-    console.log('giaVon result:', d)
-    setGiaVonRows(Array.isArray(d)?d:[])
-    setGiaVonLoading(false)
-  }
 
   useEffect(()=>{
     api('GET','/customers').then(d=>setCustomers(Array.isArray(d)?d:[]))
@@ -3954,7 +3940,6 @@ const SalesOrder=({onOpenPxk})=>{
       setPxkList(list)
       setForm(f=>({...f,SoPXK:makeNewSoPXK(list)}))
     })
-  if(kyDefault) loadGiaVon(kyDefault)
   },[])
 
   useEffect(()=>{
@@ -4053,7 +4038,6 @@ const SalesOrder=({onOpenPxk})=>{
 
   const save=async()=>{
     if(!form.SoCT||!form.MaKH){
-      console.log('save form.MaKyKeToan:', form.MaKyKeToan)
       showAlert('Vui lòng điền: Số CT và Khách Hàng!','danger'); return
     }
     const validRows=rows.filter(r=>r.product_id&&+r.quantity>0)
@@ -4118,7 +4102,7 @@ const SalesOrder=({onOpenPxk})=>{
     {/* Modal xem chi tiết */}
     <DetailModal open={detailModal} onClose={()=>{setDetailModal(false);setDetail(null)}}
       title={`🏪 Chi Tiết Phiếu Bán Hàng - ${detail?.SoCT||''}`}
-      detail={detail} loading={detailLoading} products={products} customers={customers} suppliers={[]} warehouses={warehouses} showGiaVon={true}
+      detail={detail} loading={detailLoading} products={products} customers={customers} suppliers={[]} warehouses={warehouses}
       onEdit={detail?()=>openEdit(detail):null}/>
 
     {editModal&&editForm&&<Modal open={editModal} onClose={()=>setEditModal(false)}
@@ -4126,7 +4110,7 @@ const SalesOrder=({onOpenPxk})=>{
       <div className="grid grid-cols-3 gap-3 mb-4">
         <Inp label="Số CT" value={editForm.SoCT} disabled hint="Không thể sửa số CT"/>
         <Inp label="Ngày CT" req type="date" value={editForm.NgayCT} onChange={sef('NgayCT')}/>
-        <Sel label="Kỳ Kế Toán" req value={editForm?.MaKyKeToan||''} onChange={sef('MaKyKeToan')} options={kyOptions}/>
+        <Sel label="Kỳ Kế Toán" req value={editForm.MaKyKeToan} onChange={sef('MaKyKeToan')} options={kyOptions}/>
         <div className="col-span-2">
           <Sel label="Khách Hàng" req value={editForm.MaKH} onChange={sef('MaKH')}
             options={customers.map(c=>({value:c.id,label:`${c.TenKH||c.name} (${c.MaKH||c.code})`}))}/>
@@ -4215,7 +4199,7 @@ const SalesOrder=({onOpenPxk})=>{
           <Inp label="Số CT" req value={form.SoCT} onChange={sf('SoCT')} hint="Tự sinh, có thể sửa"/>
           <Inp label="Số PXK" value={form.SoPXK} onChange={sf('SoPXK')} hint="Số phiếu xuất kho liên kết"/>
           <Inp label="Ngày CT" req type="date" value={form.NgayCT} onChange={sf('NgayCT')}/>
-          <Sel label="Kỳ Kế Toán" req value={editForm.MaKyKeToan} onChange={sef('MaKyKeToan')} options={kyOptions}/>
+          <Sel label="Kỳ Kế Toán" req value={form.MaKyKeToan} onChange={sf('MaKyKeToan')} options={kyOptions}/>
           <div className="col-span-2">
             <Sel label="Khách Hàng" req value={form.MaKH} onChange={sf('MaKH')}
               options={customers.map(c=>({value:c.id,label:`${c.TenKH||c.name} (${c.MaKH||c.code})`}))}/>
@@ -4256,65 +4240,9 @@ const SalesOrder=({onOpenPxk})=>{
           </div>
         </div>
 
-        <div className="flex gap-1 mb-2 border-b border-gray-200">
-          <button onClick={()=>setFormTab('hang')}
-            className={`px-3 py-1.5 text-xs font-semibold rounded-t ${formTab==='hang'?'bg-green-600 text-white':'text-gray-500 hover:text-gray-700'}`}>
-            📦 Danh Sách Hàng Hóa
-          </button>
-          <button onClick={()=>setFormTab('gia_von')}
-            className={`px-3 py-1.5 text-xs font-semibold rounded-t ${formTab==='gia_von'?'bg-orange-500 text-white':'text-gray-500 hover:text-gray-700'}`}>
-            💰 Giá Vốn
-          </button>
-        </div>
-        {formTab==='hang'&&<DetailTbl rows={rows} setRows={setRows} products={products} warehouses={warehouses} color="green" hasWarehouse={true} warehouseLabel="Kho Xuất"/>}
-        {formTab==='gia_von'&&<div className="border border-gray-200 rounded-lg overflow-hidden">
-          {giaVonLoading
-            ?<div className="py-6 text-center text-sm text-gray-400">Đang tải giá vốn...</div>
-            :<table className="w-full text-sm">
-              <thead className="bg-orange-50">
-                <tr>
-                  <th className="px-3 py-2 text-left text-xs font-bold text-orange-700 w-10">STT</th>
-                  <th className="px-3 py-2 text-left text-xs font-bold text-orange-700">Hàng Hóa</th>
-                  <th className="px-3 py-2 text-right text-xs font-bold text-orange-700 w-16">SL</th>
-                  <th className="px-3 py-2 text-right text-xs font-bold text-orange-700 w-28">Đơn Giá Vốn</th>
-                  <th className="px-3 py-2 text-right text-xs font-bold text-orange-700 w-28">Thành Tiền Vốn</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {rows.filter(r=>r.product_id).map((r,idx)=>{
-                  const gv=giaVonRows.find(g=>String(g.product_id)===String(r.product_id))
-                  const donGiaVon=gv?.unit_price||0
-                  const sl=+r.quantity||0
-                  return(
-                    <tr key={idx} className="hover:bg-orange-50/30">
-                      <td className="px-3 py-2.5 text-center text-gray-400 text-xs">{idx+1}</td>
-                      <td className="px-3 py-2.5 font-medium">{products.find(p=>String(p.id)===String(r.product_id))?.TenHH||'-'}</td>
-                      <td className="px-3 py-2.5 text-right font-mono">{fmtN(sl)}</td>
-                      <td className="px-3 py-2.5 text-right font-mono text-orange-600">{fmtN(donGiaVon)}</td>
-                      <td className="px-3 py-2.5 text-right font-mono font-bold text-orange-700">{fmtN(sl*donGiaVon)}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-              <tfoot className="bg-orange-50 border-t-2 border-orange-200">
-                <tr>
-                  <td colSpan={4} className="px-3 py-2.5 text-right text-sm font-bold text-orange-700">Tổng Giá Vốn:</td>
-                  <td className="px-3 py-2.5 text-right font-mono font-bold text-orange-700">
-                    {fmt(rows.filter(r=>r.product_id).reduce((s,r)=>{
-                      const gv=giaVonRows.find(g=>String(g.product_id)===String(r.product_id))
-                      return s+(+r.quantity||0)*(gv?.unit_price||0)
-                    },0))}
-                  </td>
-                </tr>
-                {giaVonRows.length===0&&!giaVonLoading&&<tr>
-                  <td colSpan={5} className="px-3 py-2 text-center text-xs text-orange-500">
-                    ⚠️ Chưa tính giá HTK cho kỳ này — vào Nghiệp Vụ → Tính Giá HTK để tính
-                  </td>
-                </tr>}
-              </tfoot>
-            </table>
-          }
-        </div>}
+        <p className="text-xs font-bold text-gray-600 mb-2">Danh Sách Hàng Hóa:</p>
+        <DetailTbl rows={rows} setRows={setRows} products={products} warehouses={warehouses} color="green" hasWarehouse={true} warehouseLabel="Kho Xuất"/>
+
         <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg flex justify-between items-center">
           <span className="text-sm font-semibold text-green-800">Tổng Thanh Toán:</span>
           <span className="text-xl font-bold text-green-700 font-mono">{fmt(total)}</span>
@@ -4331,26 +4259,7 @@ const SalesOrder=({onOpenPxk})=>{
     </Card>}
   </div>)
 }
-const DetailModal=({open,onClose,title,detail,loading,products,customers,suppliers,onEdit,warehouses=[],showGiaVon=false})=>{
-  const [activeTab,setActiveTab]=useState('hang')
-  const [giaVonData,setGiaVonData]=useState([])
-  const [giaVonLoading,setGiaVonLoading]=useState(false)
-
-  useEffect(()=>{
-    if(!open) return
-    setActiveTab('hang')
-    setGiaVonData([])
-  },[open,detail?.SoCT])
-
-  useEffect(()=>{
-    if(activeTab==='gia_von'&&detail?.MaKyKeToan&&(detail?.items||[]).length>0){
-      setGiaVonLoading(true)
-      const pids=(detail.items||[]).map(i=>i.product_id||i.MaHH).filter(Boolean).join(',')
-      api('GET',`/inventory/gia-von?period_id=${detail.MaKyKeToan}&product_ids=${pids}`)
-        .then(d=>{setGiaVonData(Array.isArray(d)?d:[]);setGiaVonLoading(false)})
-    }
-  },[activeTab,detail?.MaKyKeToan])
-
+const DetailModal=({open,onClose,title,detail,loading,products,customers,suppliers,onEdit,warehouses=[]})=>{
   if(!open) return null
 
   const getProductName=(id)=>{
@@ -4525,18 +4434,8 @@ const DetailModal=({open,onClose,title,detail,loading,products,customers,supplie
           {/* Chi tiết hàng hóa (PNM, PBH, BL) */}
           {items.length>0&&(
             <div>
-              {showGiaVon&&<div className="flex gap-1 mb-3 border-b border-gray-200">
-                <button onClick={()=>setActiveTab('hang')}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-t ${activeTab==='hang'?'bg-blue-600 text-white':'text-gray-500 hover:text-gray-700'}`}>
-                  📦 Danh Sách Hàng Hóa
-                </button>
-                <button onClick={()=>setActiveTab('gia_von')}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-t ${activeTab==='gia_von'?'bg-orange-500 text-white':'text-gray-500 hover:text-gray-700'}`}>
-                  💰 Giá Vốn
-                </button>
-              </div>}
-              {(!showGiaVon||activeTab==='hang')&&<p className="text-xs font-bold text-gray-600 mb-2">📦 Chi Tiết Hàng Hóa:</p>}
-              {(!showGiaVon||activeTab==='hang')&&<div className="border border-gray-200 rounded-lg overflow-hidden">
+              <p className="text-xs font-bold text-gray-600 mb-2">📦 Chi Tiết Hàng Hóa:</p>
+              <div className="border border-gray-200 rounded-lg overflow-hidden">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50">
                     <tr>
@@ -4575,60 +4474,9 @@ const DetailModal=({open,onClose,title,detail,loading,products,customers,supplie
                     </tr>
                   </tfoot>
                 </table>
-              </div>}
-              {showGiaVon&&activeTab==='gia_von'&&(
-                <div className="border border-gray-200 rounded-lg overflow-hidden mt-2">
-                  {giaVonLoading
-                    ?<div className="py-6 text-center text-sm text-gray-400">Đang tải giá vốn...</div>
-                    :<table className="w-full text-sm">
-                      <thead className="bg-orange-50">
-                        <tr>
-                          <th className="px-3 py-2 text-left text-xs font-bold text-orange-700 w-10">STT</th>
-                          <th className="px-3 py-2 text-left text-xs font-bold text-orange-700">Hàng Hóa</th>
-                          <th className="px-3 py-2 text-right text-xs font-bold text-orange-700 w-16">SL</th>
-                          <th className="px-3 py-2 text-right text-xs font-bold text-orange-700 w-28">Đơn Giá Vốn</th>
-                          <th className="px-3 py-2 text-right text-xs font-bold text-orange-700 w-28">Thành Tiền Vốn</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100">
-                        {items.map((item,idx)=>{
-                          const gv=giaVonData.find(g=>String(g.product_id)===String(item.product_id||item.MaHH))
-                          const donGiaVon=gv?.unit_price||0
-                          const sl=+(item.quantity||item.SoLuong||0)
-                          return(
-                            <tr key={idx} className="hover:bg-orange-50/30">
-                              <td className="px-3 py-2.5 text-center text-gray-400 text-xs">{idx+1}</td>
-                              <td className="px-3 py-2.5 font-medium">{getProductName(item.product_id||item.MaHH)}</td>
-                              <td className="px-3 py-2.5 text-right font-mono">{fmtN(sl)}</td>
-                              <td className="px-3 py-2.5 text-right font-mono text-orange-600">{fmtN(donGiaVon)}</td>
-                              <td className="px-3 py-2.5 text-right font-mono font-bold text-orange-700">{fmtN(sl*donGiaVon)}</td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                      <tfoot className="bg-orange-50 border-t-2 border-orange-200">
-                        <tr>
-                          <td colSpan={4} className="px-3 py-2.5 text-right text-sm font-bold text-orange-700">Tổng Giá Vốn:</td>
-                          <td className="px-3 py-2.5 text-right font-mono font-bold text-orange-700">
-                            {fmt(items.reduce((s,item)=>{
-                              const gv=giaVonData.find(g=>String(g.product_id)===String(item.product_id||item.MaHH))
-                              return s+(+(item.quantity||item.SoLuong||0))*(gv?.unit_price||0)
-                            },0))}
-                          </td>
-                        </tr>
-                        {giaVonData.length===0&&!giaVonLoading&&<tr>
-                          <td colSpan={5} className="px-3 py-2 text-center text-xs text-orange-500">
-                            ⚠️ Chưa tính giá HTK cho kỳ này — vào Nghiệp Vụ → Tính Giá HTK để tính
-                          </td>
-                        </tr>}
-                      </tfoot>
-                    </table>
-                  }
-                </div>
-              )}
+              </div>
             </div>
           )}
-          
 
           <div className="flex justify-end gap-2 mt-4">
             {onEdit&&<Btn v="warning" onClick={onEdit}>✏️ Sửa Phiếu</Btn>}
@@ -4651,9 +4499,6 @@ const RetailOrder=({onOpenPxk})=>{
   const [detailModal,setDetailModal]=useState(false)
   const [detailLoading,setDetailLoading]=useState(false)
   const [pxkList,setPxkList]=useState([])
-  const [formTab,setFormTab]=useState('hang')
-  const [giaVonRows,setGiaVonRows]=useState([])
-  const [giaVonLoading,setGiaVonLoading]=useState(false)
   const [editModal,setEditModal]=useState(false)
   const [editForm,setEditForm]=useState(null)
   const [editRows,setEditRows]=useState([])
@@ -4691,18 +4536,11 @@ const RetailOrder=({onOpenPxk})=>{
   const [form,setForm]=useState(()=>makeEmptyForm())
   const [rows,setRows]=useState(emptyRows())
   const sf=k=>e=>setForm(f=>({...f,[k]:e.target.value}))
-  const loadGiaVon=async(kyId)=>{
-    if(!kyId) return
-    setGiaVonLoading(true)
-    const d=await api('GET',`/inventory/gia-von?period_id=${kyId}`)
-    setGiaVonRows(Array.isArray(d)?d:[])
-    setGiaVonLoading(false)
-  }
+
   useEffect(()=>{
     api('GET','/products').then(d=>setProducts(Array.isArray(d)?d:[]))
     api('GET','/warehouses').then(d=>setWarehouses(Array.isArray(d)?d:[]))
     api('GET','/documents/phieu-xuat-kho').then(d=>setPxkList(Array.isArray(d)?d:[]))
-    if(kyDefault) loadGiaVon(kyDefault)
   },[])
 
   useEffect(()=>{
@@ -4890,7 +4728,7 @@ const saveEdit=async()=>{
     {alert&&<Alert msg={alert.msg} type={alert.type} onClose={closeAlert}/>}
     <DetailModal open={detailModal} onClose={()=>{setDetailModal(false);setDetail(null)}}
       title={`🛍️ Chi Tiết Phiếu Bán Lẻ - ${detail?.SoCT||''}`}
-      detail={detail} loading={detailLoading} products={products} customers={[]} suppliers={[]} warehouses={warehouses} showGiaVon={true}
+      detail={detail} loading={detailLoading} products={products} customers={[]} suppliers={[]} warehouses={warehouses}
       onEdit={detail?openEdit:null}/>
     {editModal&&editForm&&<Modal open={editModal} onClose={()=>setEditModal(false)}
       title={`✏️ Sửa Phiếu Bán Lẻ - ${editForm.SoCT}`} size="xl">
@@ -4954,7 +4792,7 @@ const saveEdit=async()=>{
         <div className="grid grid-cols-3 gap-3 mb-4">
           <Inp label="Số CT" req value={form.SoCT} onChange={sf('SoCT')} hint="Tự sinh, có thể sửa"/>
           <Inp label="Ngày CT" req type="date" value={form.NgayCT} onChange={sf('NgayCT')}/>
-          <Sel label="Kỳ Kế Toán" req value={form.MaKyKeToan} onChange={e=>{sf('MaKyKeToan')(e);loadGiaVon(e.target.value)}} options={kyOptions}/>
+          <Sel label="Kỳ Kế Toán" req value={form.MaKyKeToan} onChange={sf('MaKyKeToan')} options={kyOptions}/>
           <Sel label="TT HĐĐT" value={form.TrangThaiHDDT} onChange={sf('TrangThaiHDDT')}
             options={[{value:'CHUA_PH',label:'Chưa phát hành'},{value:'DA_PH',label:'Đã phát hành'}]}/>
           <Inp label="Ký Hiệu HĐ" value={form.KyHieuHD} onChange={sf('KyHieuHD')} placeholder="VD: AA/24E"/>
@@ -4965,65 +4803,8 @@ const saveEdit=async()=>{
           <Inp label="Số PXK" value={form.SoPXK} onChange={sf('SoPXK')} hint="Tự sinh"/>
           <div className="col-span-2"><Inp label="Diễn Giải" value={form.DienGiai} onChange={sf('DienGiai')}/></div>
         </div>
-        <div className="flex gap-1 mb-2 border-b border-gray-200">
-          <button onClick={()=>setFormTab('hang')}
-            className={`px-3 py-1.5 text-xs font-semibold rounded-t ${formTab==='hang'?'bg-green-600 text-white':'text-gray-500 hover:text-gray-700'}`}>
-            📦 Danh Sách Hàng Hóa
-          </button>
-          <button onClick={()=>setFormTab('gia_von')}
-            className={`px-3 py-1.5 text-xs font-semibold rounded-t ${formTab==='gia_von'?'bg-orange-500 text-white':'text-gray-500 hover:text-gray-700'}`}>
-            💰 Giá Vốn
-          </button>
-        </div>
-        {formTab==='hang'&&<DetailTbl rows={rows} setRows={setRows} products={products} warehouses={warehouses} color="green" hasWarehouse={true} warehouseLabel="Kho Xuất"/>}
-        {formTab==='gia_von'&&<div className="border border-gray-200 rounded-lg overflow-hidden">
-          {giaVonLoading
-            ?<div className="py-6 text-center text-sm text-gray-400">Đang tải giá vốn...</div>
-            :<table className="w-full text-sm">
-              <thead className="bg-orange-50">
-                <tr>
-                  <th className="px-3 py-2 text-left text-xs font-bold text-orange-700 w-10">STT</th>
-                  <th className="px-3 py-2 text-left text-xs font-bold text-orange-700">Hàng Hóa</th>
-                  <th className="px-3 py-2 text-right text-xs font-bold text-orange-700 w-16">SL</th>
-                  <th className="px-3 py-2 text-right text-xs font-bold text-orange-700 w-28">Đơn Giá Vốn</th>
-                  <th className="px-3 py-2 text-right text-xs font-bold text-orange-700 w-28">Thành Tiền Vốn</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {rows.filter(r=>r.product_id).map((r,idx)=>{
-                  const gv=giaVonRows.find(g=>String(g.product_id)===String(r.product_id))
-                  const donGiaVon=gv?.unit_price||0
-                  const sl=+r.quantity||0
-                  return(
-                    <tr key={idx} className="hover:bg-orange-50/30">
-                      <td className="px-3 py-2.5 text-center text-gray-400 text-xs">{idx+1}</td>
-                      <td className="px-3 py-2.5 font-medium">{products.find(p=>String(p.id)===String(r.product_id))?.TenHH||'-'}</td>
-                      <td className="px-3 py-2.5 text-right font-mono">{fmtN(sl)}</td>
-                      <td className="px-3 py-2.5 text-right font-mono text-orange-600">{fmtN(donGiaVon)}</td>
-                      <td className="px-3 py-2.5 text-right font-mono font-bold text-orange-700">{fmtN(sl*donGiaVon)}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-              <tfoot className="bg-orange-50 border-t-2 border-orange-200">
-                <tr>
-                  <td colSpan={4} className="px-3 py-2.5 text-right text-sm font-bold text-orange-700">Tổng Giá Vốn:</td>
-                  <td className="px-3 py-2.5 text-right font-mono font-bold text-orange-700">
-                    {fmt(rows.filter(r=>r.product_id).reduce((s,r)=>{
-                      const gv=giaVonRows.find(g=>String(g.product_id)===String(r.product_id))
-                      return s+(+r.quantity||0)*(gv?.unit_price||0)
-                    },0))}
-                  </td>
-                </tr>
-                {giaVonRows.length===0&&!giaVonLoading&&<tr>
-                  <td colSpan={5} className="px-3 py-2 text-center text-xs text-orange-500">
-                    ⚠️ Chưa tính giá HTK cho kỳ này — vào Nghiệp Vụ → Tính Giá HTK để tính
-                  </td>
-                </tr>}
-              </tfoot>
-            </table>
-          }
-        </div>}
+        <p className="text-xs font-bold text-gray-600 mb-2">Danh Sách Hàng Hóa:</p>
+        <DetailTbl rows={rows} setRows={setRows} products={products} warehouses={warehouses} color="yellow" hasWarehouse={true} warehouseLabel="Kho Xuất"/>
         <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg flex justify-between items-center">
           <span className="text-sm font-semibold text-yellow-800">Tổng Thanh Toán:</span>
           <span className="text-xl font-bold text-yellow-700 font-mono">{fmt(total)}</span>
