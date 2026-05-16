@@ -140,44 +140,53 @@ def calculate_inventory_valuation(
         details=details
     )
 @router.get("/inventory/gia-von")
-def get_gia_von(period_id: int, product_ids: str = "", db: Session = Depends(get_db)):
-    """Lấy giá vốn từ kết quả tính giá HTK theo kỳ kế toán"""
+def get_gia_von(
+    period_id: int = Query(..., description="ID kỳ kế toán"),
+    db: Session = Depends(get_db)
+):
     from app.modules.catalog.models import FiscalPeriod
     
-    period = db.query(FiscalPeriod).filter(FiscalPeriod.id == period_id).first()
-    if not period:
-        return []
-    print(f"DEBUG period: id={period.id} start={period.start_date} end={period.end_date}")
+    # Lấy kỳ kế toán
+    ky = db.query(FiscalPeriod).filter(FiscalPeriod.id == period_id).first()
+    if not ky:
+        raise HTTPException(404, f"Không tìm thấy kỳ kế toán id={period_id}")
     
-    # Parse product_ids
-    pids = [int(x) for x in product_ids.split(',') if x.strip().isdigit()]
+    start_date = ky.start_date
     
-    # Query kết quả tính giá mới nhất theo period_from/to
-    query = db.query(InventoryValuationResult).filter(
-        InventoryValuationResult.period_from <= period.start_date,
-        InventoryValuationResult.period_to >= period.start_date
-    )
-    if pids:
-        query = query.filter(InventoryValuationResult.product_id.in_(pids))
+    # Lấy tất cả sản phẩm active
+    products = db.query(Product).filter(Product.is_active == True).all()
     
-    results = query.order_by(InventoryValuationResult.calculated_at.desc()).all()
+    result = []
+    for product in products:
+        # Tìm kết quả HTK bao phủ kỳ này, lấy mới nhất
+        row = db.query(InventoryValuationResult).filter(
+            InventoryValuationResult.product_id == product.id,
+            InventoryValuationResult.period_from <= start_date,
+            InventoryValuationResult.period_to >= start_date,
+        ).order_by(InventoryValuationResult.calculated_at.desc()).first()
+        
+        if row and float(row.unit_price) > 0:
+            result.append({
+                "product_id": product.id,
+                "unit_price": float(row.unit_price),
+                "valuation_method": row.valuation_method,
+                "calculated_at": str(row.calculated_at)
+            })
+        else:
+            # Fallback: lấy kỳ gần nhất có giá > 0
+            fallback = db.query(InventoryValuationResult).filter(
+                InventoryValuationResult.product_id == product.id,
+                InventoryValuationResult.unit_price > 0,
+            ).order_by(InventoryValuationResult.calculated_at.desc()).first()
+            
+            result.append({
+                "product_id": product.id,
+                "unit_price": float(fallback.unit_price) if fallback else 0,
+                "valuation_method": fallback.valuation_method if fallback else "AVG",
+                "calculated_at": str(fallback.calculated_at) if fallback else None
+            })
     
-    # Group by product_id, lấy kết quả mới nhất
-    seen = {}
-    for r in results:
-        if r.product_id not in seen:
-            seen[r.product_id] = r
-    
-    return [
-        {
-            "product_id": r.product_id,
-            "unit_price": float(r.unit_price or 0),
-            "valuation_method": r.valuation_method,
-            "calculated_at": str(r.calculated_at)
-        }
-        for r in seen.values()
-    ]
-
+    return result
 
 # ============ BÁO CÁO TỒN KHO ============
 @router.get("/inventory/bao-cao-ton-kho", response_model=InventoryReport, status_code=200)

@@ -124,6 +124,7 @@ class SalesOrderItem(Base):
     quantity = Column(Integer, nullable=False)
     unit_price = Column(Numeric(15, 2), nullable=False)
     notes = Column(Text)
+    gia_von = Column(Numeric(15, 2), default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
@@ -138,3 +139,4 @@ class RetailOrderItem(Base):
     quantity = Column(Integer, nullable=False)
     unit_price = Column(Numeric(15, 2), nullable=False)
     notes = Column(Text)
+    gia_von = Column(Numeric(15, 2), default=0)

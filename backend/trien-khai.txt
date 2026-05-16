@@ -41,18 +41,9 @@ CPMH có cần tạo DB khong, nêu có thi tọa tong system-config
 
 {alert&&<Alert msg={alert.msg} type={alert.type} onClose={closeAlert}/>}   === dùng để fix lỗi thông báo giữa màn hình trong chinh sửa phiếu
 check lại code
-<Tabs tabs={[{id:'list',label:'📋 Danh Sách'},{id:'create',label:'+ Tạo Mới'}]}
-      active={tab}
-      onChange={t=>{
-        setTab(t)
-        if(t==='create'){
-          // Reload PNK list để sinh số không trùng
-          api('GET','/documents/phieu-nhap-kho').then(newPnk=>{
-            const list=Array.isArray(newPnk)?newPnk:[]
-            setPnkList(list)
-            setForm(makeEmptyForm(data,list))
-          })
-          setRows(emptyRows())
-         }
-      }}/>
-hiện dang trong phần SalesOder
+về PBH và PBL tôi cần cập nhật thêm:
+
+thêm tab giá vốn trong phần chi tiết hàng hóa kế bên tab Danh Sách Hàng Hóa( MH-Tên HH-SL-Đơn giá vốn) mục đích hiển thị giá vốn của sp
+hiên thị giá =0( xem như chưa tính giá hàng tồn kho)
+khi tính giá hàng tồn kho theo kỳ(thời gian tự chọn) giá vốn tự đống nhảy vào trong tab giá vốn của PBH/PBL trong kỳ đó( là kỳ tính giá hàng tồn kho)
+yêu cầu là thêm tab giá vốn trong phần chi tiết của PBH và PBL cạnh tab Danh sách hàng hóa trong phần tạo mới, bây giờ nó là 1 tab, và tab giá vốn thêm kế bên nó, nhu tab Chi Phí trong PNM

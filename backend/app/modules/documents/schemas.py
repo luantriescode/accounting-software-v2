@@ -135,6 +135,7 @@ class PhieuBanHangItemCreate(BaseModel):
     DonGia: float
     GhiChu: Optional[str] = None
     MaKho: Optional[int] = None
+    GiaVon: Optional[float] = 0 
 
 class PhieuBanHangCreate(BaseModel):
     SoCT: str
@@ -154,6 +155,7 @@ class PhieuBanHangResponse(BaseModel):
     SoCT: str
     NgayCT: date
     MaKH: Optional[int] = None
+    gia_von: Optional[float] = 0     # ← THÊM
     TongTien: float
     TrangThai: str = "DRAFT"
 
@@ -164,6 +166,7 @@ class PhieuBanLeItemCreate(BaseModel):
     SoLuong: int
     DonGia: float
     MaKho: Optional[int] = None
+    GiaVon: Optional[float] = 0 
 
 class PhieuBanLeCreate(BaseModel):
     SoCT: str
@@ -182,6 +185,7 @@ class PhieuBanLeResponse(BaseModel):
     SoCT: str
     NgayCT: date
     KhachHang: Optional[str] = None
+    gia_von: Optional[float] = 0     # ← THÊM
     TongTien: float
     TrangThai: str = "DRAFT"
 

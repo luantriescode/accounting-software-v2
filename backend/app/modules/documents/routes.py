@@ -584,15 +584,15 @@ def create_phieu_ban_hang(data: PhieuBanHangCreate, db: Session = Depends(get_db
         "hinh_thuc_tt": data.HinhThucTT or "",
         "so_pxk": data.SoPXK or ""
     })
-
+    total = sum(hang.SoLuong * hang.DonGia for hang in data.DanhSachHang)
     doc = Document(
         document_type="PBH",
         document_number=data.SoCT,
         document_date=data.NgayCT,
-        period_id=data.MaKyKeToan,
         total_amount=total_amount,
-        description=meta,
-        status="DRAFT"
+        status="DRAFT",
+        period_id=data.MaKyKeToan,
+        description=meta
     )
     db.add(doc)
     db.flush()
@@ -603,8 +603,9 @@ def create_phieu_ban_hang(data: PhieuBanHangCreate, db: Session = Depends(get_db
             product_id=item.MaHH,
             quantity=item.SoLuong,
             unit_price=item.DonGia,
-            notes=item.GhiChu,
-            warehouse_id=item.MaKho or None
+            warehouse_id=item.MaKho if hasattr(item,'MaKho') else None,
+            gia_von=item.GiaVon if hasattr(item,'GiaVon') else 0,
+            notes=item.GhiChu
         )
         db.add(soi)
 
@@ -660,12 +661,14 @@ def get_phieu_ban_hang_detail(doc_id: int, db: Session = Depends(get_db)):
     return {
         "id": d.id, "SoCT": d.document_number,
         "NgayCT": str(d.document_date),
+        "MaKyKeToan": d.period_id or meta.get('ky_ke_toan_id'),
         "MaKH": meta.get('customer_id'), "SoHD": meta.get('so_hd'),
         "DienGiai": meta.get('dien_giai'), "TongTien": float(d.total_amount or 0),
         "TrangThai": d.status,
         "items": [{"product_id": i.product_id, "quantity": i.quantity,
                    "unit_price": float(i.unit_price),
                    "warehouse_id": i.warehouse_id,
+                   "gia_von": float(i.gia_von or 0),
                    "total": float(i.quantity * i.unit_price)} for i in items]
     }
 # Thêm 10/05/2026
@@ -702,10 +705,11 @@ def update_phieu_ban_hang(doc_id: int, data: PhieuBanHangCreate, db: Session = D
         item = SalesOrderItem(
             sales_order_id=doc_id,
             product_id=hang.MaHH,
+            warehouse_id=hang.MaKho if hasattr(hang,'MaKho') else None,
             quantity=hang.SoLuong,
             unit_price=hang.DonGia,
-            notes=hang.GhiChu,
-            warehouse_id=hang.MaKho or None
+            gia_von=hang.GiaVon if hasattr(hang,'GiaVon') else 0,
+            notes=hang.GhiChu
         )
         db.add(item)
 
@@ -752,7 +756,8 @@ def create_phieu_ban_le(data: PhieuBanLeCreate, db: Session = Depends(get_db)):
             product_id=item.MaHH,
             quantity=item.SoLuong,
             unit_price=item.DonGia,
-            warehouse_id=item.MaKho or None
+            warehouse_id=item.MaKho if hasattr(item,'MaKho') else None,
+            gia_von=item.GiaVon if hasattr(item,'GiaVon') else 0
         )
         db.add(roi)
 
@@ -833,9 +838,10 @@ def get_phieu_ban_le_detail(doc_id: int, db: Session = Depends(get_db)):
         "items": [
             {
                 "product_id": i.product_id,
-                "warehouse_id": i.warehouse_id,
                 "quantity": i.quantity,
                 "unit_price": float(i.unit_price),
+                "warehouse_id": i.warehouse_id,
+                "gia_von": float(i.gia_von or 0),
                 "total": float(i.quantity * i.unit_price)
             } for i in items
         ]
@@ -871,12 +877,13 @@ def update_phieu_ban_le(doc_id: int, data: PhieuBanLeCreate, db: Session = Depen
 
     for item in data.DanhSachHang:
         db.add(RetailOrderItem(
-                retail_order_id=doc_id,
-                product_id=item.MaHH,
-                quantity=item.SoLuong,
-                unit_price=item.DonGia,
-                warehouse_id=item.MaKho or None
-            ))
+            retail_order_id=doc_id,
+            product_id=item.MaHH,
+            warehouse_id=item.MaKho if hasattr(item,'MaKho') else None,
+            quantity=item.SoLuong,
+            unit_price=item.DonGia,
+            gia_von=item.GiaVon if hasattr(item,'GiaVon') else 0,
+        ))
 
     db.commit()
     return {"message": "Cập nhật phiếu bán lẻ thành công", "id": doc_id}
