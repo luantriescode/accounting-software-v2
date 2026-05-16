@@ -4180,7 +4180,10 @@ const SalesOrder=({onOpenPxk})=>{
       const pxkData=await api('GET','/documents/phieu-xuat-kho')
       const allPxk=Array.isArray(pxkData)?pxkData:[]
       const linkedPXK=allPxk.find(p=>String(p.pbh_id)===String(detail.id))
+      const rowsWithKho=validEditRows.filter(row=>row.warehouse_id)
+
       if(linkedPXK){
+        // Đã có PXK → sync
         const pxkBody={
           so_phieu_xuat:linkedPXK.so_phieu_xuat,
           ngay_phieu_xuat:editForm.NgayCT,
@@ -4190,13 +4193,50 @@ const SalesOrder=({onOpenPxk})=>{
           dien_giai:linkedPXK.dien_giai||`Xuất kho cho ${editForm.SoCT}`,
           ky_ke_toan_id:+editForm.MaKyKeToan,
           pbh_id:detail.id,
-          items:validEditRows.map(row=>({product_id:+row.product_id,warehouse_id:+row.warehouse_id||null,quantity:+row.quantity,unit_price:+row.unit_price}))
+          items:validEditRows.map(row=>({
+            product_id:+row.product_id,
+            warehouse_id:+row.warehouse_id||null,
+            quantity:+row.quantity,
+            unit_price:+row.unit_price
+          }))
         }
         await api('PUT',`/documents/phieu-xuat-kho/${linkedPXK.id}`,pxkBody)
+        showAlert('Cập nhật PBH thành công! Đã cập nhật PXK liên kết.')
+      } else if(rowsWithKho.length>0){
+        // Chưa có PXK nhưng vừa chọn kho → tạo mới PXK
+        try{
+          const newPxkList=Array.isArray(pxkData)?pxkData:[]
+          const newSoPXK=makeNewSoPXK(newPxkList)
+          const pxkBody={
+            so_phieu_xuat:newSoPXK,
+            ngay_phieu_xuat:editForm.NgayCT,
+            loai_phieu_xuat:'Xuất bán',
+            khach_hang_id:+editForm.MaKH||null,
+            nguoi_giao_dich:editForm.NguoiGD||null,
+            dien_giai:`Xuất kho cho ${editForm.SoCT}`,
+            ky_ke_toan_id:+editForm.MaKyKeToan,
+            pbh_id:detail.id,
+            items:rowsWithKho.map(row=>({
+              product_id:+row.product_id,
+              warehouse_id:+row.warehouse_id,
+              quantity:+row.quantity,
+              unit_price:+row.unit_price
+            }))
+          }
+          const pxkRes=await api('POST','/documents/phieu-xuat-kho',pxkBody)
+          if(pxkRes&&!pxkRes.__error)
+            showAlert(`Cập nhật PBH thành công! Đã tạo PXK ${newSoPXK} liên kết.`)
+          else
+            showAlert(`Cập nhật PBH thành công! (Tạo PXK thất bại: ${pxkRes?.message||'lỗi'})`, 'warning')
+        }catch(e){
+          showAlert('Cập nhật PBH thành công! (Tạo PXK lỗi ngoại lệ)', 'warning')
+        }
+      } else {
+        showAlert('Cập nhật PBH thành công!')
       }
-      showAlert('Cập nhật PBH thành công!'+(linkedPXK?' Đã cập nhật PXK liên kết.':''))
       setEditModal(false);setDetailModal(false);setDetail(null);load()
-    } else showAlert('Lỗi: '+(r?.message||'Cập nhật thất bại'),'danger')
+    }
+     else showAlert('Lỗi: '+(r?.message||'Cập nhật thất bại'),'danger')
     setEditLoading(false)
   }
  
@@ -4940,30 +4980,54 @@ const RetailOrder=({onOpenPxk})=>{
         const pxkAll=Array.isArray(pxkData)?pxkData:[]
         const linkedPXK=pxkAll.find(p=>String(p.bl_id)===String(detail.id))
           ||pxkAll.find(p=>p.so_phieu_xuat===editForm.SoPXK)
+        const rowsWithKho=validEditRows.filter(row=>row.warehouse_id)
+
         if(linkedPXK){
+          // Đã có PXK → sync
           const pxkBody={
-            so_phieu_xuat:linkedPXK.so_phieu_xuat,ngay_phieu_xuat:editForm.NgayCT,
+            so_phieu_xuat:linkedPXK.so_phieu_xuat,
+            ngay_phieu_xuat:editForm.NgayCT,
             loai_phieu_xuat:linkedPXK.loai_phieu_xuat||'Xuất bán',
-            khach_hang_id:null,ten_khach_le:editForm.KhachHang||'',
+            khach_hang_id:null,
+            ten_khach_le:editForm.KhachHang||'',
             nguoi_giao_dich:editForm.KhachHang||'Khách lẻ',
             dien_giai:linkedPXK.dien_giai||`Xuất kho cho ${editForm.SoCT}`,
-            ky_ke_toan_id:+editForm.MaKyKeToan,bl_id:detail.id,
-            items:validEditRows.filter(row=>row.warehouse_id).map(row=>({product_id:+row.product_id,warehouse_id:+row.warehouse_id,quantity:+row.quantity,unit_price:+row.unit_price}))
+            ky_ke_toan_id:+editForm.MaKyKeToan,
+            bl_id:detail.id,
+            items:rowsWithKho.map(row=>({
+              product_id:+row.product_id,
+              warehouse_id:+row.warehouse_id,
+              quantity:+row.quantity,
+              unit_price:+row.unit_price
+            }))
           }
           await api('PUT',`/documents/phieu-xuat-kho/${linkedPXK.id}`,pxkBody)
           showAlert('Cập nhật BL thành công! Đã sync PXK liên kết.')
-        } else if(validEditRows.some(r=>r.warehouse_id)&&editForm.SoPXK){
-          const rowsWithKho=validEditRows.filter(r=>r.warehouse_id)
+        } else if(rowsWithKho.length>0){
+          // Chưa có PXK nhưng có chọn kho → tạo mới
+          const autoSoPXK=editForm.SoPXK||makeNewSoPXK(pxkAll,data)
           const pxkBody={
-            so_phieu_xuat:editForm.SoPXK,ngay_phieu_xuat:editForm.NgayCT,
-            loai_phieu_xuat:'Xuất bán',khach_hang_id:null,
-            ten_khach_le:editForm.KhachHang||'Khách lẻ',nguoi_giao_dich:null,
-            dien_giai:'Xuất kho cho '+editForm.SoCT,
-            ky_ke_toan_id:+editForm.MaKyKeToan,bl_id:detail.id,
-            items:rowsWithKho.map(row=>({product_id:+row.product_id,warehouse_id:+row.warehouse_id,quantity:+row.quantity,unit_price:+row.unit_price}))
+            so_phieu_xuat:autoSoPXK,
+            ngay_phieu_xuat:editForm.NgayCT,
+            loai_phieu_xuat:'Xuất bán',
+            khach_hang_id:null,
+            ten_khach_le:editForm.KhachHang||'Khách lẻ',
+            nguoi_giao_dich:null,
+            dien_giai:`Xuất kho cho ${editForm.SoCT}`,
+            ky_ke_toan_id:+editForm.MaKyKeToan,
+            bl_id:detail.id,
+            items:rowsWithKho.map(row=>({
+              product_id:+row.product_id,
+              warehouse_id:+row.warehouse_id,
+              quantity:+row.quantity,
+              unit_price:+row.unit_price
+            }))
           }
           const pxkRes=await api('POST','/documents/phieu-xuat-kho',pxkBody)
-          showAlert('Cập nhật BL thành công!'+(pxkRes&&!pxkRes.__error?` Đã tạo PXK ${editForm.SoPXK}.`:'(Tạo PXK thất bại)'))
+          if(pxkRes&&!pxkRes.__error)
+            showAlert(`Cập nhật BL thành công! Đã tạo PXK ${autoSoPXK}.`)
+          else
+            showAlert(`Cập nhật BL thành công! (Tạo PXK thất bại: ${pxkRes?.message||'lỗi'})`, 'warning')
         } else {
           showAlert('Cập nhật BL thành công!')
         }
