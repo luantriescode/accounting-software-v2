@@ -557,6 +557,7 @@ def update_phieu_nhap_mua(doc_id: int, data: PhieuNhapMuaCreate, db: Session = D
             quantity=item.SoLuong,
             unit_price=item.DonGia,
             chi_phi_phan_bo=item.ChiPhiPhanBo or 0,
+            warehouse_id=item.MaKho if hasattr(item,'MaKho') else None,
             notes=item.GhiChu
         )
         db.add(poi)

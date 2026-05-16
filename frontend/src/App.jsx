@@ -353,18 +353,29 @@ const Topbar=({page, onNav, onToggleSidebar, sidebarOpen})=>{
 
 // ══ DETAIL TABLE for invoices
 const DetailTbl=({rows,setRows,products,warehouses=[],color='blue',hasTax=false,hasWarehouse=false,warehouseLabel='Kho'})=>{
-  const addRow=()=>setRows(r=>[...r,{product_id:'',quantity:1,unit_price:0,tax_rate:0}])
+  const addRow=()=>setRows(r=>[...r,{product_id:'',quantity:1,unit_price:0,tax_rate:0,warehouse_id:''}])
   const upd=(i,k,v)=>setRows(rs=>rs.map((r,ri)=>ri===i?{...r,[k]:v}:r))
   const del=(i)=>setRows(rs=>rs.filter((_,ri)=>ri!==i))
+
+  // Áp dụng kho từ dòng i xuống tất cả dòng phía dưới
+  const applyWarehouseDown=(i,whId)=>{
+    if(!whId) return
+    setRows(rs=>rs.map((r,ri)=>ri>=i?{...r,warehouse_id:whId}:r))
+  }
+
   const total=rows.reduce((s,r)=>s+(+r.quantity)*(+r.unit_price),0)
   const tax=rows.reduce((s,r)=>s+(+r.quantity)*(+r.unit_price)*((+r.tax_rate||0)/100),0)
+
   return(
     <div className="border border-gray-200 rounded-lg overflow-x-auto mt-4">
       <table className="w-full text-sm">
         <thead className={`bg-${color}-50`}><tr>
           <th className={`px-3 py-2 text-left text-xs font-bold text-${color}-700 w-28`}>Mã Hàng</th>
           <th className={`px-3 py-2 text-left text-xs font-bold text-${color}-700`}>Tên Hàng Hóa</th>
-          {hasWarehouse&&<th className={`px-3 py-2 text-left text-xs font-bold text-${color}-700 w-28`}>{warehouseLabel}</th>}
+          {hasWarehouse&&<th className={`px-3 py-2 text-left text-xs font-bold text-${color}-700 w-36`}>
+            {warehouseLabel}
+            <span className="ml-1 text-gray-400 font-normal text-xs">(⬇ áp xuống)</span>
+          </th>}
           <th className={`px-3 py-2 text-right text-xs font-bold text-${color}-700 w-24`}>SL</th>
           <th className={`px-3 py-2 text-right text-xs font-bold text-${color}-700 w-32`}>Đơn Giá</th>
           <th className="px-2 py-2 text-right text-xs font-bold text-orange-500 w-24">CPMH</th>
@@ -377,59 +388,99 @@ const DetailTbl=({rows,setRows,products,warehouses=[],color='blue',hasTax=false,
           {rows.map((r,i)=>(
             <tr key={i}>
               <td className="px-2 py-1.5">
-                <select value={r.product_id||''} onChange={e=>{const p=products.find(x=>x.id==e.target.value||x.MaHH==e.target.value);upd(i,'product_id',e.target.value);if(p)upd(i,'unit_price',p.GiaBan||p.unit_price||0)}}
+                <select value={r.product_id||''} onChange={e=>{
+                  const p=products.find(x=>x.id==e.target.value||x.MaHH==e.target.value)
+                  upd(i,'product_id',e.target.value)
+                  if(p) upd(i,'unit_price',p.GiaBan||p.unit_price||0)
+                }}
                   className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none">
                   <option value="">--</option>
                   {products.map(p=><option key={p.id||p.MaHH} value={p.id||p.MaHH}>{p.MaHH||p.code}</option>)}
                 </select>
               </td>
-              <td className="px-2 py-1.5 text-xs text-gray-600">{products.find(p=>(p.id==r.product_id||p.MaHH==r.product_id))?.TenHH||products.find(p=>(p.id==r.product_id||p.MaHH==r.product_id))?.name||'-'}</td>
+              <td className="px-2 py-1.5 text-xs text-gray-600">
+                {products.find(p=>(p.id==r.product_id||p.MaHH==r.product_id))?.TenHH||
+                 products.find(p=>(p.id==r.product_id||p.MaHH==r.product_id))?.name||'-'}
+              </td>
               {hasWarehouse&&<td className="px-2 py-1.5">
-                <select value={r.warehouse_id||''} onChange={e=>upd(i,'warehouse_id',e.target.value)}
-                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none">
-                  <option value="">--</option>
-                  {warehouses.map(w=><option key={w.id} value={w.id}>{w.MaKho||w.code}</option>)}
-                </select>
+                <div className="flex items-center gap-1">
+                  <select value={r.warehouse_id||''} onChange={e=>upd(i,'warehouse_id',e.target.value)}
+                    className={`flex-1 px-2 py-1 border rounded text-xs focus:outline-none ${r.warehouse_id?'border-gray-300':'border-orange-300 bg-orange-50'}`}>
+                    <option value="">--</option>
+                    {warehouses.map(w=><option key={w.id} value={w.id}>{w.MaKho||w.code}</option>)}
+                  </select>
+                  {/* Nút áp dụng xuống dưới — chỉ hiện khi đã chọn kho và còn dòng phía dưới */}
+                  {r.warehouse_id&&i<rows.length-1&&(
+                    <button
+                      title={`Áp dụng ${warehouses.find(w=>String(w.id)===String(r.warehouse_id))?.MaKho||'kho này'} cho ${rows.length-1-i} dòng phía dưới`}
+                      onClick={()=>applyWarehouseDown(i+1,r.warehouse_id)}
+                      className="flex-shrink-0 w-6 h-6 flex items-center justify-center bg-blue-100 hover:bg-blue-200 text-blue-700 rounded text-xs font-bold transition-colors"
+                    >⬇</button>
+                  )}
+                </div>
               </td>}
-              <td className="px-2 py-1.5"><input type="number" min="0" value={r.quantity} onChange={e=>upd(i,'quantity',+e.target.value)} className="w-full px-2 py-1 border border-gray-300 rounded text-xs text-right focus:outline-none"/></td>
-              <td className="px-2 py-1.5"><input type="number" min="0" value={r.unit_price} onChange={e=>upd(i,'unit_price',+e.target.value)} className="w-full px-2 py-1 border border-gray-300 rounded text-xs text-right focus:outline-none"/></td>
+              <td className="px-2 py-1.5">
+                <input type="number" min="0" value={r.quantity}
+                  onChange={e=>upd(i,'quantity',+e.target.value)}
+                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs text-right focus:outline-none"/>
+              </td>
+              <td className="px-2 py-1.5">
+                <input type="number" min="0" value={r.unit_price}
+                  onChange={e=>upd(i,'unit_price',+e.target.value)}
+                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs text-right focus:outline-none"/>
+              </td>
               <td className="px-2 py-1.5 text-right font-mono text-sm text-orange-500">
-                        {fmtN(r.chi_phi_phan_bo||0)}
-                      </td>
-                      <td className="px-2 py-1.5 text-right font-mono text-sm font-semibold">
-                        {fmtN((+r.quantity)*(+r.unit_price)+(+r.chi_phi_phan_bo||0))}
-                      </td>
-              {hasTax&&<td className="px-2 py-1.5"><input type="number" min="0" max="100" value={r.tax_rate||0} onChange={e=>upd(i,'tax_rate',+e.target.value)} className="w-full px-2 py-1 border border-gray-300 rounded text-xs text-right focus:outline-none"/></td>}
-              {hasTax&&<td className="px-3 py-1.5 text-right font-mono text-xs text-orange-600">{fmtN((+r.quantity)*(+r.unit_price)*((+r.tax_rate||0)/100))}</td>}
-              <td className="px-2 py-1.5 text-center"><button onClick={()=>del(i)} className="text-red-400 hover:text-red-600 text-base">✕</button></td>
+                {fmtN(r.chi_phi_phan_bo||0)}
+              </td>
+              <td className="px-2 py-1.5 text-right font-mono text-sm font-semibold">
+                {fmtN((+r.quantity)*(+r.unit_price)+(+r.chi_phi_phan_bo||0))}
+              </td>
+              {hasTax&&<td className="px-2 py-1.5">
+                <input type="number" min="0" max="100" value={r.tax_rate||0}
+                  onChange={e=>upd(i,'tax_rate',+e.target.value)}
+                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs text-right focus:outline-none"/>
+              </td>}
+              {hasTax&&<td className="px-3 py-1.5 text-right font-mono text-xs text-orange-600">
+                {fmtN((+r.quantity)*(+r.unit_price)*((+r.tax_rate||0)/100))}
+              </td>}
+              <td className="px-2 py-1.5 text-center">
+                <button onClick={()=>del(i)} className="text-red-400 hover:text-red-600 text-base">✕</button>
+              </td>
             </tr>
           ))}
         </tbody>
         <tfoot className="bg-gray-50 border-t-2 border-gray-200">
           <tr>
             <td colSpan={hasTax?(hasWarehouse?5:4):(hasWarehouse?4:3)} className="px-3 py-2 text-sm font-bold text-blue-700">Tạm Tính:</td>
-            <td className="px-2 py-2 text-right font-mono font-bold text-orange-500">{fmt(rows.reduce((s,r)=>s+(+r.chi_phi_phan_bo||0),0))}</td>
-            <td className="px-2 py-2 text-right font-mono font-bold text-blue-700 text-base">{fmt(rows.reduce((s,r)=>s+(+r.quantity)*(+r.unit_price),0))}</td>
+            <td className="px-2 py-2 text-right font-mono font-bold text-orange-500">
+              {fmt(rows.reduce((s,r)=>s+(+r.chi_phi_phan_bo||0),0))}
+            </td>
+            <td className="px-2 py-2 text-right font-mono font-bold text-blue-700 text-base">
+              {fmt(rows.reduce((s,r)=>s+(+r.quantity)*(+r.unit_price),0))}
+            </td>
             {hasTax&&<td></td>}
             {hasTax&&<td className="px-2 py-2 text-right font-mono font-bold text-orange-600">{fmt(tax)}</td>}
             <td></td>
           </tr>
           {hasTax&&<tr>
-            <td colSpan={6} className="px-3 py-2 text-right font-bold text-blue-700">Tổng Thanh Toán: <span
-              className="font-mono text-base ml-2">
-              {fmt(rows.reduce((s,r)=>s+(+r.quantity)*(+r.unit_price)+(+r.chi_phi_phan_bo||0),0)
-                +rows.reduce((s,r)=>s+(+r.quantity)*(+r.unit_price)*((+r.tax_rate||0)/100),0))}
-            </span></td>
+            <td colSpan={6} className="px-3 py-2 text-right font-bold text-blue-700">
+              Tổng Thanh Toán: <span className="font-mono text-base ml-2">
+                {fmt(rows.reduce((s,r)=>s+(+r.quantity)*(+r.unit_price)+(+r.chi_phi_phan_bo||0),0)
+                  +rows.reduce((s,r)=>s+(+r.quantity)*(+r.unit_price)*((+r.tax_rate||0)/100),0))}
+              </span>
+            </td>
           </tr>}
         </tfoot>
       </table>
       <div className="p-2">
-        <button onClick={addRow} className={`px-3 py-1.5 bg-${color}-50 text-${color}-700 rounded text-xs font-semibold hover:bg-${color}-100`}>+ Thêm Dòng</button>
+        <button onClick={addRow}
+          className={`px-3 py-1.5 bg-${color}-50 text-${color}-700 rounded text-xs font-semibold hover:bg-${color}-100`}>
+          + Thêm Dòng
+        </button>
       </div>
     </div>
   )
 }
-
 
 
 // ══ EXCEL EXPORT UTILITY (dùng SheetJS)
@@ -3312,11 +3363,6 @@ const PurchaseInvoice=({onNav,onOpenPnk})=>{
     }
   },[pnkList])
 
-  useEffect(()=>{
-    if(pnkList.length>0)
-      setForm(f=>({...f,SoPNK:makeNewSoPNK(pnkList)}))
-  },[pnkList])
-
   // Hàm xem chi tiết phiếu
   const openDetail=async(row)=>{
     setDetailModal(true)
@@ -3381,6 +3427,7 @@ const PurchaseInvoice=({onNav,onOpenPnk})=>{
         SoLuong:+r.quantity,
         DonGia:+r.unit_price,
         ChiPhiPhanBo:+r.chi_phi_phan_bo||0,
+        MaKho:+r.warehouse_id||null,
         GhiChu:''
       }))
     }
@@ -3515,6 +3562,7 @@ const PurchaseInvoice=({onNav,onOpenPnk})=>{
       products={products}
       customers={[]}
       suppliers={suppliers}
+      warehouses={warehouses}
       onEdit={detail?()=>openEdit(detail):null}/>      
     {editModal&&editForm&&<Modal open={editModal} onClose={()=>setEditModal(false)}
       title={`✏️ Sửa Phiếu Nhập Mua - ${editForm.SoCT}`} size="lg">
@@ -3522,9 +3570,9 @@ const PurchaseInvoice=({onNav,onOpenPnk})=>{
       <div className="grid grid-cols-3 gap-3 mb-4">
         <Inp label="Số CT" value={editForm.SoCT} disabled hint="Không thể sửa số CT"/>
         <Inp label="Ngày CT" req type="date" value={editForm.NgayCT} onChange={sef('NgayCT')}/>
-        <Sel label="Kỳ Kế Toán" req value={editForm.MaKyKeToan} onChange={sef('MaKyKeToan')} options={kyOptions}/>
+        <Sel label="Kỳ Kế Toán" req value={editForm.MaKyKeToan||''} onChange={sef('MaKyKeToan')} options={kyOptions}/>
         <div className="col-span-2">
-          <Sel label="Nhà Cung Cấp" req value={editForm.MaNCC} onChange={sef('MaNCC')}
+          <Sel label="Nhà Cung Cấp" req value={editForm.MaNCC||''} onChange={sef('MaNCC')}
             options={suppliers.map(s=>({value:s.id,label:`${s.TenNCC||s.name} (${s.MaNCC||s.code})`}))}/>
         </div>
         <Sel label="Hình Thức TT" value={editForm.HinhThucTT} onChange={sef('HinhThucTT')}
@@ -3556,21 +3604,41 @@ const PurchaseInvoice=({onNav,onOpenPnk})=>{
         </div>
         <button onClick={()=>{
           const validR=editRows.filter(r=>r.product_id&&+r.quantity>0)
+          console.log('[PhanBoEdit] validR.length='+validR.length+' editCpmhDonGia='+editCpmhDonGia)
+          console.log('[PhanBoEdit] validR='+JSON.stringify(validR.map(r=>({pid:r.product_id,qty:r.quantity,cpb:r.chi_phi_phan_bo}))))
           if(!validR.length){showAlert('Chưa có hàng hóa!','warning');return}
           if(!+editCpmhDonGia){showAlert('Vui lòng nhập Tổng CPMH!','warning');return}
           const cp=+editCpmhDonGia
           const tongSL=validR.reduce((s,r)=>s+(+r.quantity),0)
           const tongGT=validR.reduce((s,r)=>s+(+r.quantity)*(+r.unit_price),0)
-          setEditRows(rs=>rs.map(r=>{
-            if(!r.product_id||!+r.quantity) return r
+          let allocated=0
+          // Tính phân bổ cho từng dòng valid, dòng cuối hấp thụ phần lẻ
+          const result=validR.map((r,idx)=>{
             let pb=0
-            if(editPhanBoMethod==='sl') pb=tongSL?Math.round(cp*(+r.quantity/tongSL)):0
-            else if(editPhanBoMethod==='gt'){
+            if(idx===validR.length-1){
+              pb=cp-allocated
+            } else if(editPhanBoMethod==='sl'){
+              pb=tongSL?Math.round(cp*(+r.quantity/tongSL)):0
+              allocated+=pb
+            } else if(editPhanBoMethod==='gt'){
               const gt=(+r.quantity)*(+r.unit_price)
               pb=tongGT?Math.round(cp*(gt/tongGT)):0
+              allocated+=pb
             }
             return {...r,chi_phi_phan_bo:pb}
-          }))
+          })
+          // Map lại vào editRows đầy đủ theo product_id + index trong validR
+          setEditRows(rs=>{
+            let vi=0  // ← đưa vi vào trong updater
+            const newRs=rs.map(r=>{
+              if(!r.product_id||!+r.quantity) return {...r,chi_phi_phan_bo:0}
+              const updated=result[vi]
+              vi++
+              return updated||r
+            })
+            console.log('[PhanBoEdit] newRs='+JSON.stringify(newRs.map(r=>({pid:r.product_id,cpb:r.chi_phi_phan_bo}))))
+            return newRs
+          })
           showAlert('✅ Đã phân bổ lại CPMH!')
         }}
           className="mt-5 px-4 py-1.5 bg-orange-500 text-white text-sm font-semibold rounded hover:bg-orange-600 whitespace-nowrap">
@@ -3660,9 +3728,9 @@ const PurchaseInvoice=({onNav,onOpenPnk})=>{
           <Inp label="Số CT" req value={form.SoCT} onChange={sf('SoCT')} hint="Tự sinh, có thể sửa"/>
           <Inp label="Số PNK" req value={form.SoPNK} onChange={sf('SoPNK')} hint="Số phiếu nhập kho"/>
           <Inp label="Ngày CT" req type="date" value={form.NgayCT} onChange={sf('NgayCT')}/>
-          <Sel label="Kỳ Kế Toán" req value={form.MaKyKeToan} onChange={sf('MaKyKeToan')} options={kyOptions}/>
+          <Sel label="Kỳ Kế Toán" req value={form.MaKyKeToan||''} onChange={sf('MaKyKeToan')} options={kyOptions}/>
           <div className="col-span-2">
-            <Sel label="Nhà Cung Cấp" req value={form.MaNCC} onChange={sf('MaNCC')}
+            <Sel label="Nhà Cung Cấp" req value={form.MaNCC||''} onChange={sf('MaNCC')}
               options={suppliers.map(s=>({value:s.id,label:`${s.TenNCC||s.name} (${s.MaNCC||s.code})`}))}/>
           </div>
           <Sel label="Hình Thức TT" value={form.HinhThucTT} onChange={sf('HinhThucTT')}
@@ -3736,24 +3804,44 @@ const PurchaseInvoice=({onNav,onOpenPnk})=>{
                   </div>
                   <button onClick={()=>{
                     const validR=rows.filter(r=>r.product_id&&+r.quantity>0)
+                    console.log('[PhanBo] validR.length='+validR.length+' cpmhDonGia='+cpmhDonGia)
+                    console.log('[PhanBo] validR='+JSON.stringify(validR.map(r=>({pid:r.product_id,qty:r.quantity,cpb:r.chi_phi_phan_bo}))))
                     if(!validR.length) return
                     const cp=+cpmhDonGia
                     if(!cp){showAlert('Vui lòng nhập đơn giá CPMH!','warning');return}
                     const tongSL=validR.reduce((s,r)=>s+(+r.quantity),0)
                     const tongGT=validR.reduce((s,r)=>s+(+r.quantity)*(+r.unit_price),0)
-                    setRows(rs=>rs.map(r=>{
-                      if(!r.product_id||!+r.quantity) return r
+                    let allocated=0
+                    // Tính pb cho từng validR theo index
+                    const pbList=validR.map((r,idx)=>{
                       let pb=0, tl=0
-                      if(phanBoMethod==='sl'){
+                      if(idx===validR.length-1){
+                        pb=cp-allocated
+                        tl=tongSL?(+r.quantity/tongSL*100):0
+                      } else if(phanBoMethod==='sl'){
                         tl=tongSL?(+r.quantity/tongSL*100):0
                         pb=Math.round(cp*(+r.quantity/tongSL))
+                        allocated+=pb
                       } else if(phanBoMethod==='gt'){
                         const gt=(+r.quantity)*(+r.unit_price)
                         tl=tongGT?(gt/tongGT*100):0
                         pb=Math.round(cp*(gt/tongGT))
+                        allocated+=pb
                       }
-                      return {...r,chi_phi_phan_bo:pb,ty_le_phan_bo:Math.round(tl*100)/100}
-                    }))
+                      return {pb, tl:Math.round(tl*100)/100}
+                    })
+                    // Map lại rows theo index trong validR — không dùng indexOf
+                    setRows(rs=>{
+                      let vi=0  // ← đưa vi vào trong updater
+                      const newRs=rs.map(r=>{
+                        if(!r.product_id||!+r.quantity) return {...r,chi_phi_phan_bo:0,ty_le_phan_bo:0}
+                        const {pb,tl}=pbList[vi]||{pb:0,tl:0}
+                        vi++
+                        return {...r,chi_phi_phan_bo:pb,ty_le_phan_bo:tl}
+                      })
+                      console.log('[PhanBo] newRs='+JSON.stringify(newRs.map(r=>({pid:r.product_id,cpb:r.chi_phi_phan_bo}))))
+                      return newRs
+                    })
                   }}
                     className="mt-5 px-5 py-2 bg-blue-600 text-white text-sm font-semibold rounded hover:bg-blue-700">
                     Phân Bổ
@@ -3779,10 +3867,12 @@ const PurchaseInvoice=({onNav,onOpenPnk})=>{
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {rows.filter(r=>r.product_id&&+r.quantity>0).map((r,i,arr)=>{
+                    {rows.reduce((acc,r,ri)=>{
+                      if(!r.product_id||!+r.quantity) return acc
+                      return [...acc,{r,ri}]
+                    },[]).map(({r,ri},i)=>{
                       const p=products.find(x=>String(x.id)===String(r.product_id))
                       const tt=(+r.quantity)*(+r.unit_price)
-                      const origIdx=rows.indexOf(r)
                       return(
                         <tr key={i} className="hover:bg-gray-50">
                           <td className="px-3 py-2.5 font-mono text-xs text-gray-600">{p?.MaHH||p?.code||'-'}</td>
@@ -3793,7 +3883,7 @@ const PurchaseInvoice=({onNav,onOpenPnk})=>{
                             {(phanBoMethod==='pct')
                               ?<input type="number" value={r.ty_le_phan_bo||0}
                                   onChange={e=>setRows(rs=>rs.map((x,xi)=>{
-                                    if(xi!==origIdx) return x
+                                    if(xi!==ri) return x
                                     const tl=+e.target.value
                                     return {...x,ty_le_phan_bo:tl,chi_phi_phan_bo:Math.round(+cpmhDonGia*tl/100)}
                                   }))}
@@ -3804,7 +3894,7 @@ const PurchaseInvoice=({onNav,onOpenPnk})=>{
                           <td className="px-3 py-2.5 text-right">
                             {phanBoMethod==='val'
                               ?<input type="number" value={r.chi_phi_phan_bo||0}
-                                  onChange={e=>setRows(rs=>rs.map((x,xi)=>xi===origIdx?{...x,chi_phi_phan_bo:+e.target.value}:x))}
+                                  onChange={e=>setRows(rs=>rs.map((x,xi)=>xi===ri?{...x,chi_phi_phan_bo:+e.target.value}:x))}
                                   className="w-24 px-2 py-1 border border-gray-300 rounded text-xs text-right"/>
                               :<span className="font-mono font-semibold text-blue-700">{fmtN(r.chi_phi_phan_bo||0)}</span>
                             }
@@ -3840,7 +3930,7 @@ const PurchaseInvoice=({onNav,onOpenPnk})=>{
                 }}>Hủy Phân Bổ</Btn>
                 <Btn v="success" onClick={()=>{
                   const tong=rows.reduce((s,r)=>s+(+r.chi_phi_phan_bo||0),0)
-                  if(+cpmhDonGia>0&&tong!==+cpmhDonGia){
+                  if(+cpmhDonGia>0&&Math.abs(tong-+cpmhDonGia)>1){
                     showAlert(`Tổng phân bổ (${fmtN(tong)}) chưa khớp Tổng CP (${fmtN(+cpmhDonGia)})!`,'warning')
                     return
                   }

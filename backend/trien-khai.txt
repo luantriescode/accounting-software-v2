@@ -24,26 +24,186 @@ cập nhật thư viện= pip install pydantic[email]
 chạy backend= python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 9000
 frontend: cd frontend && npm run dev -- --host 0.0.0.0
 
- khi tạo mới cho phiếu mua hang:
- ngoài Số CT tự sinh, sẽ thêm ô số phiếu nhập kho tự sinh kèm theo, khi lưu sẽ lấy số phiếu nhạp kho làm số phiếu cho PNK
+ Download the React DevTools for a better development experience: https://reactjs.org/link/react-devtools
+2App.jsx:3330 pnkList sample: {"id":5,"so_phieu_nhap":"PNK-202605-002","ngay_phieu_nhap":"2026-05-05","nha_cung_cap_id":2,"loai_phieu_nhap":"Nhập từ NCC","tong_so_luong":1,"tong_tien":522000,"trang_thai":"DRAFT","pnm_id":null,"updated_from_pnm_at":null}
+App.jsx:4557 [DetailModal] showGiaVon=false items=undefined MaKyKeToan=undefined
+App.jsx:4557 [DetailModal] showGiaVon=false items=undefined MaKyKeToan=undefined
+App.jsx:4557 [DetailModal] showGiaVon=false items=3 MaKyKeToan=6
+App.jsx:4557 [DetailModal] showGiaVon=false items=3 MaKyKeToan=6
+App.jsx:4566 Uncaught TypeError: Cannot read properties of undefined (reading 'find')
+    at getWarehouseName (App.jsx:4566:24)
+    at App.jsx:4764:88
+    at Array.map (<anonymous>)
+    at DetailModal (App.jsx:4759:28)
+    at renderWithHooks (chunk-PJEEZAML.js?v=8f696f0a:11548:26)
+    at updateFunctionComponent (chunk-PJEEZAML.js?v=8f696f0a:14582:28)
+    at beginWork (chunk-PJEEZAML.js?v=8f696f0a:15924:22)
+    at HTMLUnknownElement.callCallback2 (chunk-PJEEZAML.js?v=8f696f0a:3674:22)
+    at Object.invokeGuardedCallbackDev (chunk-PJEEZAML.js?v=8f696f0a:3699:24)
+    at invokeGuardedCallback (chunk-PJEEZAML.js?v=8f696f0a:3733:39)
+getWarehouseName @ App.jsx:4566
+(anonymous) @ App.jsx:4764
+DetailModal @ App.jsx:4759
+renderWithHooks @ chunk-PJEEZAML.js?v=8f696f0a:11548
+updateFunctionComponent @ chunk-PJEEZAML.js?v=8f696f0a:14582
+beginWork @ chunk-PJEEZAML.js?v=8f696f0a:15924
+callCallback2 @ chunk-PJEEZAML.js?v=8f696f0a:3674
+invokeGuardedCallbackDev @ chunk-PJEEZAML.js?v=8f696f0a:3699
+invokeGuardedCallback @ chunk-PJEEZAML.js?v=8f696f0a:3733
+beginWork$1 @ chunk-PJEEZAML.js?v=8f696f0a:19765
+performUnitOfWork @ chunk-PJEEZAML.js?v=8f696f0a:19198
+workLoopSync @ chunk-PJEEZAML.js?v=8f696f0a:19137
+renderRootSync @ chunk-PJEEZAML.js?v=8f696f0a:19116
+performConcurrentWorkOnRoot @ chunk-PJEEZAML.js?v=8f696f0a:18678
+workLoop @ chunk-PJEEZAML.js?v=8f696f0a:197
+flushWork @ chunk-PJEEZAML.js?v=8f696f0a:176
+performWorkUntilDeadline @ chunk-PJEEZAML.js?v=8f696f0a:384
+postMessage
+schedulePerformWorkUntilDeadline @ chunk-PJEEZAML.js?v=8f696f0a:407
+requestHostCallback @ chunk-PJEEZAML.js?v=8f696f0a:418
+unstable_scheduleCallback @ chunk-PJEEZAML.js?v=8f696f0a:330
+scheduleCallback$1 @ chunk-PJEEZAML.js?v=8f696f0a:19826
+ensureRootIsScheduled @ chunk-PJEEZAML.js?v=8f696f0a:18652
+scheduleUpdateOnFiber @ chunk-PJEEZAML.js?v=8f696f0a:18562
+dispatchSetState @ chunk-PJEEZAML.js?v=8f696f0a:12403
+(anonymous) @ App.jsx:3347
+await in (anonymous)
+(anonymous) @ App.jsx:3656
+callCallback2 @ chunk-PJEEZAML.js?v=8f696f0a:3674
+invokeGuardedCallbackDev @ chunk-PJEEZAML.js?v=8f696f0a:3699
+invokeGuardedCallback @ chunk-PJEEZAML.js?v=8f696f0a:3733
+invokeGuardedCallbackAndCatchFirstError @ chunk-PJEEZAML.js?v=8f696f0a:3736
+executeDispatch @ chunk-PJEEZAML.js?v=8f696f0a:7014
+processDispatchQueueItemsInOrder @ chunk-PJEEZAML.js?v=8f696f0a:7034
+processDispatchQueue @ chunk-PJEEZAML.js?v=8f696f0a:7043
+dispatchEventsForPlugins @ chunk-PJEEZAML.js?v=8f696f0a:7051
+(anonymous) @ chunk-PJEEZAML.js?v=8f696f0a:7174
+batchedUpdates$1 @ chunk-PJEEZAML.js?v=8f696f0a:18913
+batchedUpdates @ chunk-PJEEZAML.js?v=8f696f0a:3579
+dispatchEventForPluginEventSystem @ chunk-PJEEZAML.js?v=8f696f0a:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-PJEEZAML.js?v=8f696f0a:5478
+dispatchEvent @ chunk-PJEEZAML.js?v=8f696f0a:5472
+dispatchDiscreteEvent @ chunk-PJEEZAML.js?v=8f696f0a:5449Understand this error
+App.jsx:4557 [DetailModal] showGiaVon=false items=3 MaKyKeToan=6
+App.jsx:4557 [DetailModal] showGiaVon=false items=3 MaKyKeToan=6
+App.jsx:4566 Uncaught TypeError: Cannot read properties of undefined (reading 'find')
+    at getWarehouseName (App.jsx:4566:24)
+    at App.jsx:4764:88
+    at Array.map (<anonymous>)
+    at DetailModal (App.jsx:4759:28)
+    at renderWithHooks (chunk-PJEEZAML.js?v=8f696f0a:11548:26)
+    at updateFunctionComponent (chunk-PJEEZAML.js?v=8f696f0a:14582:28)
+    at beginWork (chunk-PJEEZAML.js?v=8f696f0a:15924:22)
+    at HTMLUnknownElement.callCallback2 (chunk-PJEEZAML.js?v=8f696f0a:3674:22)
+    at Object.invokeGuardedCallbackDev (chunk-PJEEZAML.js?v=8f696f0a:3699:24)
+    at invokeGuardedCallback (chunk-PJEEZAML.js?v=8f696f0a:3733:39)
+getWarehouseName @ App.jsx:4566
+(anonymous) @ App.jsx:4764
+DetailModal @ App.jsx:4759
+renderWithHooks @ chunk-PJEEZAML.js?v=8f696f0a:11548
+updateFunctionComponent @ chunk-PJEEZAML.js?v=8f696f0a:14582
+beginWork @ chunk-PJEEZAML.js?v=8f696f0a:15924
+callCallback2 @ chunk-PJEEZAML.js?v=8f696f0a:3674
+invokeGuardedCallbackDev @ chunk-PJEEZAML.js?v=8f696f0a:3699
+invokeGuardedCallback @ chunk-PJEEZAML.js?v=8f696f0a:3733
+beginWork$1 @ chunk-PJEEZAML.js?v=8f696f0a:19765
+performUnitOfWork @ chunk-PJEEZAML.js?v=8f696f0a:19198
+workLoopSync @ chunk-PJEEZAML.js?v=8f696f0a:19137
+renderRootSync @ chunk-PJEEZAML.js?v=8f696f0a:19116
+recoverFromConcurrentError @ chunk-PJEEZAML.js?v=8f696f0a:18736
+performConcurrentWorkOnRoot @ chunk-PJEEZAML.js?v=8f696f0a:18684
+workLoop @ chunk-PJEEZAML.js?v=8f696f0a:197
+flushWork @ chunk-PJEEZAML.js?v=8f696f0a:176
+performWorkUntilDeadline @ chunk-PJEEZAML.js?v=8f696f0a:384
+postMessage
+schedulePerformWorkUntilDeadline @ chunk-PJEEZAML.js?v=8f696f0a:407
+requestHostCallback @ chunk-PJEEZAML.js?v=8f696f0a:418
+unstable_scheduleCallback @ chunk-PJEEZAML.js?v=8f696f0a:330
+scheduleCallback$1 @ chunk-PJEEZAML.js?v=8f696f0a:19826
+ensureRootIsScheduled @ chunk-PJEEZAML.js?v=8f696f0a:18652
+scheduleUpdateOnFiber @ chunk-PJEEZAML.js?v=8f696f0a:18562
+dispatchSetState @ chunk-PJEEZAML.js?v=8f696f0a:12403
+(anonymous) @ App.jsx:3347
+await in (anonymous)
+(anonymous) @ App.jsx:3656
+callCallback2 @ chunk-PJEEZAML.js?v=8f696f0a:3674
+invokeGuardedCallbackDev @ chunk-PJEEZAML.js?v=8f696f0a:3699
+invokeGuardedCallback @ chunk-PJEEZAML.js?v=8f696f0a:3733
+invokeGuardedCallbackAndCatchFirstError @ chunk-PJEEZAML.js?v=8f696f0a:3736
+executeDispatch @ chunk-PJEEZAML.js?v=8f696f0a:7014
+processDispatchQueueItemsInOrder @ chunk-PJEEZAML.js?v=8f696f0a:7034
+processDispatchQueue @ chunk-PJEEZAML.js?v=8f696f0a:7043
+dispatchEventsForPlugins @ chunk-PJEEZAML.js?v=8f696f0a:7051
+(anonymous) @ chunk-PJEEZAML.js?v=8f696f0a:7174
+batchedUpdates$1 @ chunk-PJEEZAML.js?v=8f696f0a:18913
+batchedUpdates @ chunk-PJEEZAML.js?v=8f696f0a:3579
+dispatchEventForPluginEventSystem @ chunk-PJEEZAML.js?v=8f696f0a:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-PJEEZAML.js?v=8f696f0a:5478
+dispatchEvent @ chunk-PJEEZAML.js?v=8f696f0a:5472
+dispatchDiscreteEvent @ chunk-PJEEZAML.js?v=8f696f0a:5449Understand this error
+chunk-PJEEZAML.js?v=8f696f0a:14032 The above error occurred in the <DetailModal> component:
 
- CPMH: tạo trong bảng system-config với key: CPMH, value:chi phí mua hàng: co thể thay đổi được( khi chọn CPMH trong phiếu mua hàng sẽ nhập lại tên cho CPMH-value)
-trong phần tạo mới:
-phàn chi tiết có mục Danh sách hàng hóa, yêu cầu mới là tạo thêm tab "Chi phí", hiện tại chi có mỗi danh sách hàng hóa
-mục đích: phân bổ chi phí theo mã hàng hóa trong phần danh sách hàng hóa để ghi nhận vào giá trị nhập kho( giá trị hàng mua+chi phí phần bổ)
-    trong tab chi phí co giao điện như sau:
-        hàng 1: Ô phương thức phần bổ( dropdown): tỷ lê % theo sl, tỷ lệ % theo giá trị, tự nhập %, tự nhập giá trị/ button( Phân Bổ)/tổng chi phí mua hàng
-        hàng 2: danh sách hàng hóa: theo tab danh sach hàng hóa nhé
-        hàng 3: 1 hàng tính tổng của các cột: SỐ lượng/thành tiền/tỷ lệ phân Bổ
-        hàng 4; nút hủy và lưu
-Trong danh hang hóa sẽ luôn có dòng CPMH( có check box để xác nhận chọn hay không): co các trường nhu sau;Mã hàng( CPMH) tên HH: Chí Phí Mua hàng( có thế chinh sửa đc) và các cột SL,Đơn giá, thành tiền lấy theo cột danh sách hàng hóa.
-CPMH có cần tạo DB khong, nêu có thi tọa tong system-config
+    at DetailModal (http://localhost:3000/src/App.jsx?t=1778948803150:11108:24)
+    at div
+    at PurchaseInvoice (http://localhost:3000/src/App.jsx?t=1778948803150:8451:28)
+    at div
+    at main
+    at div
+    at App (http://localhost:3000/src/App.jsx?t=1778948803150:15746:27)
 
-{alert&&<Alert msg={alert.msg} type={alert.type} onClose={closeAlert}/>}   === dùng để fix lỗi thông báo giữa màn hình trong chinh sửa phiếu
-check lại code
-về PBH và PBL tôi cần cập nhật thêm:
-
-thêm tab giá vốn trong phần chi tiết hàng hóa kế bên tab Danh Sách Hàng Hóa( MH-Tên HH-SL-Đơn giá vốn) mục đích hiển thị giá vốn của sp
-hiên thị giá =0( xem như chưa tính giá hàng tồn kho)
-khi tính giá hàng tồn kho theo kỳ(thời gian tự chọn) giá vốn tự đống nhảy vào trong tab giá vốn của PBH/PBL trong kỳ đó( là kỳ tính giá hàng tồn kho)
-yêu cầu là thêm tab giá vốn trong phần chi tiết của PBH và PBL cạnh tab Danh sách hàng hóa trong phần tạo mới, bây giờ nó là 1 tab, và tab giá vốn thêm kế bên nó, nhu tab Chi Phí trong PNM
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
+logCapturedError @ chunk-PJEEZAML.js?v=8f696f0a:14032
+update.callback @ chunk-PJEEZAML.js?v=8f696f0a:14052
+callCallback @ chunk-PJEEZAML.js?v=8f696f0a:11248
+commitUpdateQueue @ chunk-PJEEZAML.js?v=8f696f0a:11265
+commitLayoutEffectOnFiber @ chunk-PJEEZAML.js?v=8f696f0a:17093
+commitLayoutMountEffects_complete @ chunk-PJEEZAML.js?v=8f696f0a:17980
+commitLayoutEffects_begin @ chunk-PJEEZAML.js?v=8f696f0a:17969
+commitLayoutEffects @ chunk-PJEEZAML.js?v=8f696f0a:17920
+commitRootImpl @ chunk-PJEEZAML.js?v=8f696f0a:19353
+commitRoot @ chunk-PJEEZAML.js?v=8f696f0a:19277
+finishConcurrentRender @ chunk-PJEEZAML.js?v=8f696f0a:18760
+performConcurrentWorkOnRoot @ chunk-PJEEZAML.js?v=8f696f0a:18718
+workLoop @ chunk-PJEEZAML.js?v=8f696f0a:197
+flushWork @ chunk-PJEEZAML.js?v=8f696f0a:176
+performWorkUntilDeadline @ chunk-PJEEZAML.js?v=8f696f0a:384
+postMessage
+schedulePerformWorkUntilDeadline @ chunk-PJEEZAML.js?v=8f696f0a:407
+requestHostCallback @ chunk-PJEEZAML.js?v=8f696f0a:418
+unstable_scheduleCallback @ chunk-PJEEZAML.js?v=8f696f0a:330
+scheduleCallback$1 @ chunk-PJEEZAML.js?v=8f696f0a:19826
+ensureRootIsScheduled @ chunk-PJEEZAML.js?v=8f696f0a:18652
+scheduleUpdateOnFiber @ chunk-PJEEZAML.js?v=8f696f0a:18562
+dispatchSetState @ chunk-PJEEZAML.js?v=8f696f0a:12403
+(anonymous) @ App.jsx:3347
+await in (anonymous)
+(anonymous) @ App.jsx:3656
+callCallback2 @ chunk-PJEEZAML.js?v=8f696f0a:3674
+invokeGuardedCallbackDev @ chunk-PJEEZAML.js?v=8f696f0a:3699
+invokeGuardedCallback @ chunk-PJEEZAML.js?v=8f696f0a:3733
+invokeGuardedCallbackAndCatchFirstError @ chunk-PJEEZAML.js?v=8f696f0a:3736
+executeDispatch @ chunk-PJEEZAML.js?v=8f696f0a:7014
+processDispatchQueueItemsInOrder @ chunk-PJEEZAML.js?v=8f696f0a:7034
+processDispatchQueue @ chunk-PJEEZAML.js?v=8f696f0a:7043
+dispatchEventsForPlugins @ chunk-PJEEZAML.js?v=8f696f0a:7051
+(anonymous) @ chunk-PJEEZAML.js?v=8f696f0a:7174
+batchedUpdates$1 @ chunk-PJEEZAML.js?v=8f696f0a:18913
+batchedUpdates @ chunk-PJEEZAML.js?v=8f696f0a:3579
+dispatchEventForPluginEventSystem @ chunk-PJEEZAML.js?v=8f696f0a:7173
+dispatchEventWithEnableCapturePhaseSelectiveHydrationWithoutDiscreteEventReplay @ chunk-PJEEZAML.js?v=8f696f0a:5478
+dispatchEvent @ chunk-PJEEZAML.js?v=8f696f0a:5472
+dispatchDiscreteEvent @ chunk-PJEEZAML.js?v=8f696f0a:5449Understand this error
+chunk-PJEEZAML.js?v=8f696f0a:19413 Uncaught TypeError: Cannot read properties of undefined (reading 'find')
+    at getWarehouseName (App.jsx:4566:24)
+    at App.jsx:4764:88
+    at Array.map (<anonymous>)
+    at DetailModal (App.jsx:4759:28)
+    at renderWithHooks (chunk-PJEEZAML.js?v=8f696f0a:11548:26)
+    at updateFunctionComponent (chunk-PJEEZAML.js?v=8f696f0a:14582:28)
+    at beginWork (chunk-PJEEZAML.js?v=8f696f0a:15924:22)
+    at beginWork$1 (chunk-PJEEZAML.js?v=8f696f0a:19753:22)
+    at performUnitOfWork (chunk-PJEEZAML.js?v=8f696f0a:19198:20)
+    at workLoopSync (chunk-PJEEZAML.js?v=8f696f0a:19137:13)
+Đang lỗi khi xem chi tiest phiếu nhập mua, check hàm opendetail
+showAlert('✅ Đã phân bổ lại CPMH!')
