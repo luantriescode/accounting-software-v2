@@ -350,28 +350,146 @@ const Topbar=({page, onNav, onToggleSidebar, sidebarOpen})=>{
     </div>
   )
 }
+const ComboSelect=({value,onChange,items=[],placeholder='-- Chọn --',onRequestCreate})=>{
+  const [query,setQuery]=useState('')
+  const [open,setOpen]=useState(false)
+  const ref=React.useRef(null)
 
+  // Đóng dropdown khi click ngoài
+  useEffect(()=>{
+    const handler=e=>{if(ref.current&&!ref.current.contains(e.target)) setOpen(false)}
+    document.addEventListener('mousedown',handler)
+    return()=>document.removeEventListener('mousedown',handler)
+  },[])
+
+  const selectedItem=items.find(i=>String(i.id)===String(value))
+
+  const filtered=query
+    ?items.filter(i=>{
+        const q=query.toLowerCase()
+        return (i.code||'').toLowerCase().includes(q)||(i.name||'').toLowerCase().includes(q)
+      })
+    :items.slice(0,50) // giới hạn 50 khi chưa gõ
+
+  const displayText=open?query:(selectedItem?`${selectedItem.code} - ${selectedItem.name}`:'')
+
+  return(
+    <div ref={ref} className="relative w-full">
+      <input
+        value={displayText}
+        onChange={e=>{setQuery(e.target.value);setOpen(true)}}
+        onFocus={()=>{setQuery('');setOpen(true)}}
+        placeholder={selectedItem?`${selectedItem.code} - ${selectedItem.name}`:placeholder}
+        className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:border-blue-400"
+      />
+      {open&&<div className="absolute z-50 left-0 top-full mt-0.5 w-64 bg-white border border-gray-200 rounded shadow-lg max-h-48 overflow-y-auto">
+        {filtered.length===0&&!query&&<div className="px-3 py-2 text-xs text-gray-400">Gõ để tìm kiếm...</div>}
+        {filtered.map(i=>(
+          <div key={i.id}
+            onMouseDown={()=>{onChange(i.id,i);setQuery('');setOpen(false)}}
+            className={`px-3 py-2 text-xs cursor-pointer hover:bg-blue-50 ${String(i.id)===String(value)?'bg-blue-100 font-semibold':''}`}>
+            <span className="font-mono text-gray-500 mr-1">{i.code}</span>
+            <span>{i.name}</span>
+          </div>
+        ))}
+        {/* Dòng tạo mới — hiện khi gõ và không tìm thấy chính xác */}
+        {query&&filtered.length===0&&onRequestCreate&&(
+          <div
+            onMouseDown={()=>{onRequestCreate(query);setOpen(false)}}
+            className="px-3 py-2 text-xs cursor-pointer bg-green-50 hover:bg-green-100 text-green-700 font-semibold border-t border-green-200">
+            ✨ Tạo mới "{query}"
+          </div>
+        )}
+        {query&&filtered.length>0&&onRequestCreate&&(
+          <div
+            onMouseDown={()=>{onRequestCreate(query);setOpen(false)}}
+            className="px-3 py-2 text-xs cursor-pointer bg-green-50 hover:bg-green-100 text-green-700 font-semibold border-t border-green-200">
+            ✨ Tạo mới "{query}"
+          </div>
+        )}
+      </div>}
+    </div>
+  )
+}
+const CreateProductModal=({open,onClose,onCreated,initialName='',units=[],existingCodes=[]})=>{
+  const [form,setForm]=useState({MaHH:'',TenHH:'',DVT:'',DanhMuc:'',GiaBan:0,TonKhoToiThieu:10})
+  const [saving,setSaving]=useState(false)
+  const [alert,showAlert,closeAlert]=useAlert()
+  const sf=k=>e=>setForm(f=>({...f,[k]:e.target.value}))
+
+  // Auto-sinh mã SP khi mở
+  useEffect(()=>{
+    if(!open) return
+    // Tìm số lớn nhất từ các mã SP dạng SPxxx
+    const maxNum=(existingCodes||[]).reduce((mx,code)=>{
+      const m=String(code||'').match(/^SP(\d+)$/)
+      return m?Math.max(mx,+m[1]):mx
+    },0)
+    const autoCode=`SP${String(maxNum+1).padStart(3,'0')}`
+    const dvt=units.length?(units[0].name||units[0].code||'Cái'):'Cái'
+    setForm({MaHH:autoCode,TenHH:initialName,DVT:dvt,DanhMuc:'',GiaBan:0,TonKhoToiThieu:10})
+  },[open,initialName,existingCodes])
+
+  const unitOptions=units.filter(u=>u.is_active!==false).map(u=>({value:u.name||u.code,label:`${u.code} - ${u.name}`}))
+  if(!unitOptions.length) unitOptions.push(
+    {value:'Cái',label:'Cái'},{value:'Kg',label:'Kg'},
+    {value:'Lít',label:'Lít'},{value:'Hộp',label:'Hộp'},{value:'Thùng',label:'Thùng'}
+  )
+
+  const save=async()=>{
+    if(!form.MaHH||!form.TenHH){showAlert('Vui lòng nhập Mã HH và Tên HH!','danger');return}
+    setSaving(true)
+    const r=await api('POST','/products',{...form,GiaBan:+form.GiaBan,TonKhoToiThieu:+form.TonKhoToiThieu,ConHoatDong:true})
+    setSaving(false)
+    if(r&&!r.__error){
+      onCreated(r)  // trả SP mới về cho caller
+      onClose()
+    } else showAlert('Lỗi: '+(r?.message||'Mã HH đã tồn tại hoặc lỗi server'),'danger')
+  }
+
+  if(!open) return null
+  return(
+    <Modal open={open} onClose={onClose} title="📦 Tạo Sản Phẩm Mới">
+      {alert&&<Alert msg={alert.msg} type={alert.type} onClose={closeAlert}/>}
+      <div className="grid grid-cols-2 gap-3">
+        <Inp label="Mã HH" req value={form.MaHH} onChange={sf('MaHH')} hint="Tự sinh, có thể sửa"/>
+        <Inp label="Tên HH" req value={form.TenHH} onChange={sf('TenHH')}/>
+        <Sel label="Đơn Vị Tính" req value={form.DVT} onChange={sf('DVT')} options={unitOptions}/>
+        <Inp label="Danh Mục" value={form.DanhMuc} onChange={sf('DanhMuc')}/>
+        <Inp label="Giá Bán" type="number" value={form.GiaBan} onChange={sf('GiaBan')}/>
+        <Inp label="Tồn Tối Thiểu" type="number" value={form.TonKhoToiThieu} onChange={sf('TonKhoToiThieu')}/>
+      </div>
+      {!units.length&&<p className="text-xs text-yellow-600 bg-yellow-50 border border-yellow-200 rounded px-3 py-2 mt-3">
+        ⚠️ Chưa có đơn vị tính — vào <b>Danh Mục → Đơn Vị Tính</b> để thêm trước.
+      </p>}
+      <div className="flex justify-end gap-2 mt-4">
+        <Btn v="outline" onClick={onClose}>Hủy</Btn>
+        <Btn onClick={save} disabled={saving}>{saving?'Đang lưu...':'💾 Tạo & Dùng Ngay'}</Btn>
+      </div>
+    </Modal>
+  )
+}
 // ══ DETAIL TABLE for invoices
-const DetailTbl=({rows,setRows,products,warehouses=[],color='blue',hasTax=false,hasWarehouse=false,warehouseLabel='Kho'})=>{
+const DetailTbl=({rows,setRows,products,warehouses=[],color='blue',hasTax=false,hasWarehouse=false,warehouseLabel='Kho',units=[],onProductCreated=null})=>{
   const addRow=()=>setRows(r=>[...r,{product_id:'',quantity:1,unit_price:0,tax_rate:0,warehouse_id:''}])
   const upd=(i,k,v)=>setRows(rs=>rs.map((r,ri)=>ri===i?{...r,[k]:v}:r))
   const del=(i)=>setRows(rs=>rs.filter((_,ri)=>ri!==i))
+  const [createProdModal,setCreateProdModal]=useState(false)
+  const [createProdForRow,setCreateProdForRow]=useState(null)
+  const [createProdInitName,setCreateProdInitName]=useState('')
 
-  // Áp dụng kho từ dòng i xuống tất cả dòng phía dưới
   const applyWarehouseDown=(i,whId)=>{
     if(!whId) return
     setRows(rs=>rs.map((r,ri)=>ri>=i?{...r,warehouse_id:whId}:r))
   }
 
-  const total=rows.reduce((s,r)=>s+(+r.quantity)*(+r.unit_price),0)
   const tax=rows.reduce((s,r)=>s+(+r.quantity)*(+r.unit_price)*((+r.tax_rate||0)/100),0)
 
-  return(
+  return(<>
     <div className="border border-gray-200 rounded-lg overflow-x-auto mt-4">
       <table className="w-full text-sm">
         <thead className={`bg-${color}-50`}><tr>
-          <th className={`px-3 py-2 text-left text-xs font-bold text-${color}-700 w-28`}>Mã Hàng</th>
-          <th className={`px-3 py-2 text-left text-xs font-bold text-${color}-700`}>Tên Hàng Hóa</th>
+          <th className={`px-3 py-2 text-left text-xs font-bold text-${color}-700 w-44`}>Mã / Tên Hàng Hóa</th>
           {hasWarehouse&&<th className={`px-3 py-2 text-left text-xs font-bold text-${color}-700 w-36`}>
             {warehouseLabel}
             <span className="ml-1 text-gray-400 font-normal text-xs">(⬇ áp xuống)</span>
@@ -388,19 +506,25 @@ const DetailTbl=({rows,setRows,products,warehouses=[],color='blue',hasTax=false,
           {rows.map((r,i)=>(
             <tr key={i}>
               <td className="px-2 py-1.5">
-                <select value={r.product_id||''} onChange={e=>{
-                  const p=products.find(x=>x.id==e.target.value||x.MaHH==e.target.value)
-                  upd(i,'product_id',e.target.value)
-                  if(p) upd(i,'unit_price',p.GiaBan||p.unit_price||0)
-                }}
-                  className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none">
-                  <option value="">--</option>
-                  {products.map(p=><option key={p.id||p.MaHH} value={p.id||p.MaHH}>{p.MaHH||p.code}</option>)}
-                </select>
-              </td>
-              <td className="px-2 py-1.5 text-xs text-gray-600">
-                {products.find(p=>(p.id==r.product_id||p.MaHH==r.product_id))?.TenHH||
-                 products.find(p=>(p.id==r.product_id||p.MaHH==r.product_id))?.name||'-'}
+                <ComboSelect
+                  value={r.product_id||''}
+                  onChange={(id,item)=>{
+                    upd(i,'product_id',id)
+                    if(item) upd(i,'unit_price',item.GiaBan||item.unit_price||0)
+                  }}
+                  items={products.map(p=>({
+                    id:p.id||p.MaHH,
+                    code:p.MaHH||p.code||'',
+                    name:p.TenHH||p.name||'',
+                    GiaBan:p.GiaBan||p.unit_price||0
+                  }))}
+                  placeholder="-- Tìm SP --"
+                  onRequestCreate={onProductCreated?(name=>{
+                    setCreateProdForRow(i)
+                    setCreateProdInitName(name)
+                    setCreateProdModal(true)
+                  }):null}
+                />
               </td>
               {hasWarehouse&&<td className="px-2 py-1.5">
                 <div className="flex items-center gap-1">
@@ -409,7 +533,6 @@ const DetailTbl=({rows,setRows,products,warehouses=[],color='blue',hasTax=false,
                     <option value="">--</option>
                     {warehouses.map(w=><option key={w.id} value={w.id}>{w.MaKho||w.code}</option>)}
                   </select>
-                  {/* Nút áp dụng xuống dưới — chỉ hiện khi đã chọn kho và còn dòng phía dưới */}
                   {r.warehouse_id&&i<rows.length-1&&(
                     <button
                       title={`Áp dụng ${warehouses.find(w=>String(w.id)===String(r.warehouse_id))?.MaKho||'kho này'} cho ${rows.length-1-i} dòng phía dưới`}
@@ -479,7 +602,23 @@ const DetailTbl=({rows,setRows,products,warehouses=[],color='blue',hasTax=false,
         </button>
       </div>
     </div>
-  )
+    {onProductCreated&&<CreateProductModal
+      open={createProdModal}
+      onClose={()=>{setCreateProdModal(false);setCreateProdForRow(null)}}
+      initialName={createProdInitName}
+      units={units}
+      existingCodes={products.map(p=>p.MaHH||p.code||'')}
+      onCreated={(newProd)=>{
+        if(createProdForRow!==null){
+          upd(createProdForRow,'product_id',newProd.id||newProd.MaHH)
+          upd(createProdForRow,'unit_price',newProd.GiaBan||newProd.unit_price||0)
+        }
+        onProductCreated(newProd)
+        setCreateProdModal(false)
+        setCreateProdForRow(null)
+      }}
+    />}
+  </>)
 }
 
 
@@ -714,8 +853,8 @@ const FiscalYearFixed = () => (
     initForm={{nam:'', tu_ngay:'', den_ngay:'', mo_ta:'', da_khoa:false}}
   />
 )
-
-const WarehouseReceiptPage=({autoOpenPnkId=null,onAutoOpenDone=null})=>{
+// Phiếu nhập kho
+const WarehouseReceiptPage=({autoOpenPnkId=null,onAutoOpenDone=null,onNav=null})=>{
   const [data,loading,load]=useList('/documents/phieu-nhap-kho')
   const [tab,setTab]=useState('list')
   const [warehouses,setWarehouses]=useState([])
@@ -726,6 +865,11 @@ const WarehouseReceiptPage=({autoOpenPnkId=null,onAutoOpenDone=null})=>{
   const [detail,setDetail]=useState(null)
   const [detailModal,setDetailModal]=useState(false)
   const [detailLoading,setDetailLoading]=useState(false)
+  const [editModal,setEditModal]=useState(false)
+  const [editForm,setEditForm]=useState(null)
+  const [editRows,setEditRows]=useState([])
+  const [editLoading,setEditLoading]=useState(false)
+  const [units,setUnits]=useState([])
 
   // ── Tự sinh số phiếu ──
   const makeNewSoCT=(list)=>{
@@ -804,55 +948,80 @@ const WarehouseReceiptPage=({autoOpenPnkId=null,onAutoOpenDone=null})=>{
 }
 
   const openEdit=(d)=>{
+    // PNK tạo từ PNM → không cho sửa, hiện cảnh báo
+    if(d.pnm_id){
+      const goToPNM=window.confirm(
+        `⚠️ Phiếu ${d.SoCT||d.so_phieu_nhap} được tạo tự động từ Phiếu Nhập Mua.\n\n`+
+        `Để đảm bảo đồng bộ dữ liệu, vui lòng sửa tại Phiếu Nhập Mua liên kết.\n\n`+
+        `Nhấn OK → chuyển đến Phiếu Nhập Mua liên kết\n`+
+        `Nhấn Hủy → tự tìm thủ công`
+      )
+      if(goToPNM){
+        setDetailModal(false)
+        setDetail(null)
+        // Chuyển sang tab PNM và tự mở chi tiết phiếu đó
+        if(onNav) onNav('nv-pnm', d.pnm_id)
+      }
+      return
+    }
+    // PNK độc lập → cho sửa
     setEditForm({
-      SoCT: d.SoCT||'',
-      NgayCT: String(d.NgayCT||today()).slice(0,10),
-      MaKyKeToan: d.MaKyKeToan||kyDefault,
-      MaNCC: d.MaNCC||'',
-      NguoiGD: d.NguoiGD||'',
-      DienGiai: d.DienGiai||'',
-      SoHD: d.SoHD||'',
-      NgayHD: String(d.NgayHD||today()).slice(0,10),
-      HinhThucTT: d.HinhThucTT||'Tiền mặt'
+      so_phieu_nhap: d.SoCT||d.so_phieu_nhap||'',
+      ngay_phieu_nhap: String(d.NgayCT||d.ngay_phieu_nhap||today()).slice(0,10),
+      loai_phieu_nhap: d.loai_phieu_nhap||'Nhập từ NCC',
+      nha_cung_cap_id: d.MaNCC||d.nha_cung_cap_id||'',
+      nguoi_giao_dich: d.nguoi_giao_dich||'',
+      dien_giai: d.dien_giai||'',
+      ky_ke_toan_id: d.ky_ke_toan_id||d.MaKyKeToan||kyDefault||''
     })
     setEditRows(
       d.items&&d.items.length>0
         ?d.items.map(i=>({
-            product_id:i.product_id,
+            product_id:String(i.product_id||''),
+            warehouse_id:String(i.warehouse_id||''),
             quantity:i.quantity||1,
             unit_price:i.unit_price||0,
             chi_phi_phan_bo:i.chi_phi_phan_bo||0,
-            tax_rate:i.tax_rate||0
+            tax_rate:0
           }))
-        :[{product_id:'',quantity:1,unit_price:0,chi_phi_phan_bo:0,tax_rate:0}]
+        :[{product_id:'',warehouse_id:'',quantity:1,unit_price:0,chi_phi_phan_bo:0,tax_rate:0}]
     )
     setEditModal(true)
   }
 
   const saveEdit=async()=>{
-    if(!editForm.MaNCC){showAlert('Vui lòng chọn Nhà Cung Cấp!','danger');return}
-    const validEditRows=editRows.filter(r=>r.product_id&&+r.quantity>0)
-    if(!validEditRows.length){showAlert('Vui lòng thêm ít nhất 1 dòng hàng hóa!','danger');return}
+    if(!editForm.ngay_phieu_nhap){showAlert('Vui lòng chọn Ngày Phiếu!','danger');return}
+    if(!editForm.ky_ke_toan_id){showAlert('Vui lòng chọn Kỳ Kế Toán!','danger');return}
+    const validEditRows=editRows.filter(r=>r.product_id&&r.warehouse_id&&+r.quantity>0)
+    if(!validEditRows.length){showAlert('Vui lòng thêm ít nhất 1 dòng hàng hóa có chọn kho!','danger');return}
     setEditLoading(true)
     const body={
-      SoCT:editForm.SoCT, NgayCT:editForm.NgayCT,
-      MaNCC:+editForm.MaNCC, MaKyKeToan:+editForm.MaKyKeToan,
-      NguoiGD:editForm.NguoiGD, DienGiai:editForm.DienGiai,
-      SoHD:editForm.SoHD, NgayHD:editForm.NgayHD,
-      HinhThucTT:editForm.HinhThucTT,
-      DanhSachHang:validEditRows.map(r=>({
-        MaHH:+r.product_id, SoLuong:+r.quantity,
-        DonGia:+r.unit_price, ChiPhiPhanBo:+r.chi_phi_phan_bo||0, GhiChu:''
+      so_phieu_nhap: editForm.so_phieu_nhap,
+      ngay_phieu_nhap: editForm.ngay_phieu_nhap,
+      loai_phieu_nhap: editForm.loai_phieu_nhap||'Nhập từ NCC',
+      nha_cung_cap_id: editForm.nha_cung_cap_id?+editForm.nha_cung_cap_id:null,
+      nguoi_giao_dich: editForm.nguoi_giao_dich||null,
+      dien_giai: editForm.dien_giai||null,
+      ky_ke_toan_id: +editForm.ky_ke_toan_id,
+      items: validEditRows.map(r=>({
+        product_id: +r.product_id,
+        warehouse_id: +r.warehouse_id,
+        quantity: +r.quantity,
+        unit_price: +r.unit_price,
+        chi_phi_phan_bo: +r.chi_phi_phan_bo||0
       }))
     }
-    const r=await api('PUT',`/documents/phieu-nhap-mua/${detail.id}`,body)
+    const r=await api('PUT',`/documents/phieu-nhap-kho/${detail.id}`,body)
     setEditLoading(false)
     if(r&&!r.__error){
-      showAlert('Cập nhật phiếu nhập mua thành công!')
-      setEditModal(false); setDetailModal(false); setDetail(null); load()
+      showAlert('Cập nhật PNK thành công!')
+      setEditModal(false);setDetailModal(false);setDetail(null);load()
     } else showAlert('Lỗi: '+(r?.message||'Cập nhật thất bại'),'danger')
   }
 
+const reloadProducts=()=>{
+    api('GET','/products').then(d=>setProducts(Array.isArray(d)?d:[]))
+  }
   // Helper tên NCC
   const getNCCLabel=(id)=>{
     if(!id) return '-'
@@ -1048,6 +1217,7 @@ const WarehouseReceiptPage=({autoOpenPnkId=null,onAutoOpenDone=null})=>{
           }
 
           <div className="flex justify-end gap-2 mt-4">
+            {detail&&<Btn v="warning" onClick={()=>openEdit(detail)}>✏️ Sửa Phiếu</Btn>}
             <Btn v="outline" onClick={()=>{setDetailModal(false);setDetail(null)}}>Đóng</Btn>
           </div>
         </>
@@ -1060,6 +1230,55 @@ const WarehouseReceiptPage=({autoOpenPnkId=null,onAutoOpenDone=null})=>{
     {alert&&<Alert msg={alert.msg} type={alert.type} onClose={closeAlert}/>}
     <PNKDetailModal/>
 
+    {editModal&&editForm&&<Modal open={editModal} onClose={()=>setEditModal(false)}
+      title={`✏️ Sửa Phiếu Nhập Kho - ${editForm.so_phieu_nhap}`} size="lg">
+      {alert&&<Alert msg={alert.msg} type={alert.type} onClose={closeAlert}/>}
+      <div className="grid grid-cols-3 gap-3 mb-4">
+        <Inp label="Số Phiếu" value={editForm.so_phieu_nhap} disabled hint="Không thể sửa số phiếu"/>
+        <Inp label="Ngày Phiếu" req type="date" value={editForm.ngay_phieu_nhap}
+          onChange={e=>setEditForm(f=>({...f,ngay_phieu_nhap:e.target.value}))}/>
+        <Sel label="Kỳ Kế Toán" req value={editForm.ky_ke_toan_id||''}
+          onChange={e=>setEditForm(f=>({...f,ky_ke_toan_id:e.target.value}))}
+          options={kyOptions}/>
+        <Sel label="Loại Phiếu" value={editForm.loai_phieu_nhap}
+          onChange={e=>setEditForm(f=>({...f,loai_phieu_nhap:e.target.value}))}
+          options={[
+            {value:'Nhập từ NCC',label:'Nhập từ NCC'},
+            {value:'Nhập thành phẩm',label:'Nhập thành phẩm'},
+            {value:'Nhập kho mua hàng',label:'Nhập kho mua hàng'},
+            {value:'Nhập khác',label:'Nhập khác'},
+          ]}/>
+        <div className="col-span-2">
+          <Sel label="Nhà Cung Cấp" value={editForm.nha_cung_cap_id||''}
+            onChange={e=>setEditForm(f=>({...f,nha_cung_cap_id:e.target.value}))}
+            options={suppliers.map(s=>({value:s.id,label:`${s.TenNCC||s.name} (${s.MaNCC||s.code})`}))}/>
+        </div>
+        <Inp label="Người Giao Dịch" value={editForm.nguoi_giao_dich||''}
+          onChange={e=>setEditForm(f=>({...f,nguoi_giao_dich:e.target.value}))}/>
+        <div className="col-span-3">
+          <Inp label="Diễn Giải" value={editForm.dien_giai||''}
+            onChange={e=>setEditForm(f=>({...f,dien_giai:e.target.value}))}/>
+        </div>
+      </div>
+      <p className="text-xs font-bold text-gray-600 mb-1">📦 Danh Sách Hàng Nhập:</p>
+      <DetailTbl
+        rows={editRows} setRows={setEditRows}
+        products={products} warehouses={warehouses}
+        color="blue" hasWarehouse={true} warehouseLabel="Kho Nhập"
+        units={units} onProductCreated={reloadProducts}/>
+      <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg flex justify-between">
+        <span className="text-sm font-bold text-blue-800">Tổng Thanh Toán:</span>
+        <span className="text-lg font-bold text-blue-700 font-mono">
+          {fmt(editRows.reduce((s,r)=>s+(+r.quantity)*(+r.unit_price)+(+r.chi_phi_phan_bo||0),0))}
+        </span>
+      </div>
+      <div className="flex justify-end gap-2 mt-4">
+        <Btn v="outline" onClick={()=>setEditModal(false)}>Hủy</Btn>
+        <Btn v="success" onClick={saveEdit} disabled={editLoading}>
+          {editLoading?'Đang lưu...':'💾 Lưu Thay Đổi'}
+        </Btn>
+      </div>
+    </Modal>}
     <Tabs tabs={[{id:'list',label:'📋 Danh Sách'},{id:'create',label:'+ Tạo Mới'}]}
       active={tab}
       onChange={t=>{
@@ -1139,79 +1358,12 @@ const WarehouseReceiptPage=({autoOpenPnkId=null,onAutoOpenDone=null})=>{
           </div>
         </div>
 
-        <p className="text-xs font-bold text-gray-600 mb-2">Chi Tiết Hàng Nhập:</p>
-        <div className="border border-gray-200 rounded-lg overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-blue-50">
-              <tr>
-                <th className="px-3 py-2 text-left text-xs font-bold text-blue-700">Kho Nhập</th>
-                <th className="px-3 py-2 text-left text-xs font-bold text-blue-700">Mã Hàng</th>
-                <th className="px-3 py-2 text-left text-xs font-bold text-blue-700">Tên Hàng</th>
-                <th className="px-3 py-2 text-right text-xs font-bold text-blue-700 w-24">SL</th>
-                <th className="px-3 py-2 text-right text-xs font-bold text-blue-700 w-32">Đơn Giá</th>
-                <th className="px-3 py-2 text-right text-xs font-bold text-blue-700 w-32">Thành Tiền</th>
-                <th className="w-8"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {rows.map((r,i)=>(
-                <tr key={i}>
-                  <td className="px-2 py-1.5">
-                    <select value={r.warehouse_id||''} onChange={e=>upd(i,'warehouse_id',e.target.value)}
-                      className="w-full px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none">
-                      <option value="">--</option>
-                      {warehouses.map(w=><option key={w.id} value={w.id}>{w.MaKho||w.code}</option>)}
-                    </select>
-                  </td>
-                  <td className="px-2 py-1.5">
-                    <select value={r.product_id||''} onChange={e=>{
-                      const p=products.find(x=>x.id==e.target.value)
-                      upd(i,'product_id',e.target.value)
-                      if(p) upd(i,'unit_price',p.GiaBan||p.unit_price||0)
-                    }} className="w-28 px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none">
-                      <option value="">--</option>
-                      {products.map(p=><option key={p.id} value={p.id}>{p.MaHH||p.code}</option>)}
-                    </select>
-                  </td>
-                  <td className="px-2 py-1.5 text-xs text-gray-600">
-                    {products.find(p=>String(p.id)===String(r.product_id))?.TenHH||
-                     products.find(p=>String(p.id)===String(r.product_id))?.name||'-'}
-                  </td>
-                  <td className="px-2 py-1.5">
-                    <input type="number" min="0" value={r.quantity}
-                      onChange={e=>upd(i,'quantity',+e.target.value)}
-                      className="w-full px-2 py-1 border border-gray-300 rounded text-xs text-right focus:outline-none"/>
-                  </td>
-                  <td className="px-2 py-1.5">
-                    <input type="number" min="0" value={r.unit_price}
-                      onChange={e=>upd(i,'unit_price',+e.target.value)}
-                      className="w-full px-2 py-1 border border-gray-300 rounded text-xs text-right focus:outline-none"/>
-                  </td>
-                  <td className="px-3 py-1.5 text-right font-mono text-xs font-semibold text-blue-700">
-                    {fmtN((+r.quantity)*(+r.unit_price))}
-                  </td>
-                  <td className="px-2 py-1.5">
-                    <button onClick={()=>setRows(rs=>rs.filter((_,ri)=>ri!==i))}
-                      className="text-red-400 hover:text-red-600 text-base">✕</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot className="bg-gray-50 border-t-2 border-gray-200">
-              <tr>
-                <td colSpan={5} className="px-3 py-2 font-bold text-blue-700">Tổng Thanh Toán</td>
-                <td className="px-3 py-2 text-right font-mono font-bold text-blue-700 text-base">
-                  {fmt(total)}
-                </td>
-                <td></td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-        <button onClick={()=>setRows(r=>[...r,{product_id:'',warehouse_id:'',quantity:1,unit_price:0}])}
-          className="mt-2 px-3 py-1.5 bg-blue-50 text-blue-700 rounded text-xs font-semibold hover:bg-blue-100">
-          + Thêm Dòng
-        </button>
+        <p className="text-xs font-bold text-gray-600 mb-1">Chi Tiết Hàng Nhập:</p>
+        <DetailTbl
+          rows={rows} setRows={setRows}
+          products={products} warehouses={warehouses}
+          color="blue" hasWarehouse={true} warehouseLabel="Kho Nhập"
+          units={units} onProductCreated={reloadProducts}/>
       </CB>
       <CF>
         <Btn v="outline" onClick={()=>{
@@ -1237,6 +1389,11 @@ const WarehouseIssuePage=({autoOpenPxkId=null,onAutoOpenDone=null})=>{
   const [detail,setDetail]=useState(null)
   const [detailModal,setDetailModal]=useState(false)
   const [detailLoading,setDetailLoading]=useState(false)
+  const [editModal,setEditModal]=useState(false)
+  const [editForm,setEditForm]=useState(null)
+  const [editRows,setEditRows]=useState([])
+  const [editLoading,setEditLoading]=useState(false)
+  const [units,setUnits]=useState([])
 
   // ── Tự sinh số phiếu ──
   const makeNewSoCT=(list)=>{
@@ -2846,6 +3003,7 @@ const Payments=()=>{
 
   useEffect(()=>{
     api('GET','/suppliers').then(d=>setSuppliers(Array.isArray(d)?d:[]))
+    api('GET','/units').then(d=>setUnits(Array.isArray(d)?d:[]))
     api('GET','/categories/loai-giao-dich-chi').then(d=>{
       const list=Array.isArray(d)?d:(d?.items||[])
       setLoaiGDChi(list)
@@ -3283,12 +3441,13 @@ const isBC=type==='nv-bc'
 }
 
 // PHIẾU NHẬP MUA - API: NgayCT, SoCT, MaNCC, SoHD, NgayHD, NguoiGD, DienGiai, MaKyKeToan, HinhThucTT, DanhSachHang[{MaHH,SoLuong,DonGia,GhiChu}]
-const PurchaseInvoice=({onNav,onOpenPnk})=>{
+const PurchaseInvoice=({onNav,onOpenPnk,autoOpenPnmId=null,onAutoOpenPnmDone=null})=>{
   const [data,loading,load]=useList('/documents/phieu-nhap-mua')
   const [tab,setTab]=useState('list')
   const [suppliers,setSuppliers]=useState([])
   const [products,setProducts]=useState([])
   const [warehouses,setWarehouses]=useState([])
+  const [units,setUnits]=useState([])
   const {options:kyOptions,defaultKy:kyDefault}=useKyKeToan()
   const [alert,showAlert,closeAlert]=useAlert()
   const [detail,setDetail]=useState(null)
@@ -3349,6 +3508,7 @@ const PurchaseInvoice=({onNav,onOpenPnk})=>{
     api('GET','/products').then(d=>setProducts(Array.isArray(d)?d:[]))
     api('GET','/documents/phieu-nhap-kho').then(d=>setPnkList(Array.isArray(d)?d:[]))
     api('GET','/warehouses').then(d=>setWarehouses(Array.isArray(d)?d:[]))
+    api('GET','/units').then(d=>setUnits(Array.isArray(d)?d:[]))
   },[])
 
   useEffect(()=>{
@@ -3362,6 +3522,21 @@ const PurchaseInvoice=({onNav,onOpenPnk})=>{
       setForm(f=>({...f,SoPNK:makeNewSoPNK(pnkList)}))
     }
   },[pnkList])
+  useEffect(()=>{
+    if(!autoOpenPnmId) return
+    // Chờ data load xong rồi tìm và mở
+    if(loading) return
+    const row=data.find(r=>String(r.id)===String(autoOpenPnmId))
+    if(row){
+      openDetail(row)
+    } else {
+      // Nếu không tìm thấy trong list → fetch trực tiếp
+      api('GET',`/documents/phieu-nhap-mua/${autoOpenPnmId}`).then(r=>{
+        if(r&&!r.__error) openDetail({id:autoOpenPnmId,...r})
+      })
+    }
+    if(onAutoOpenPnmDone) onAutoOpenPnmDone()
+  },[autoOpenPnmId,loading])
 
   // Hàm xem chi tiết phiếu
   const openDetail=async(row)=>{
@@ -3463,6 +3638,9 @@ const PurchaseInvoice=({onNav,onOpenPnk})=>{
       showAlert('Cập nhật PNM thành công!'+(linkedPNK?' Đã cập nhật PNK liên kết.':''))
       setEditModal(false); setDetailModal(false); setDetail(null); load()
     } else showAlert('Lỗi: '+(r?.message||'Cập nhật thất bại'),'danger')
+  }
+  const reloadProducts=()=>{
+    api('GET','/products').then(d=>setProducts(Array.isArray(d)?d:[]))
   }
   // Helper tên NCC
   const getNCCLabel=(id)=>{
@@ -3653,7 +3831,8 @@ const PurchaseInvoice=({onNav,onOpenPnk})=>{
       </div>
 
       <p className="text-xs font-bold text-gray-600 mb-2">📦 Danh Sách Hàng Hóa:</p>
-      <DetailTbl rows={editRows} setRows={setEditRows} products={products} warehouses={warehouses} color="blue" hasTax={true} hasWarehouse={true}/>
+      <DetailTbl rows={editRows} setRows={setEditRows} products={products} warehouses={warehouses} color="blue" hasTax={true} hasWarehouse={true}
+        units={units} onProductCreated={reloadProducts}/>
       <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg flex justify-between items-center">
         <span className="text-sm font-bold text-blue-800">Tổng Thanh Toán:</span>
         <span className="text-lg font-bold text-blue-700 font-mono">
@@ -3755,7 +3934,8 @@ const PurchaseInvoice=({onNav,onOpenPnk})=>{
           </button>
         </div>        
         {detailTab==='hang'&&<>
-          <DetailTbl rows={rows} setRows={setRows} products={products} warehouses={warehouses} color="blue" hasTax={true} hasWarehouse={true} warehouseLabel="Kho Nhập"/>
+          <DetailTbl rows={rows} setRows={setRows} products={products} warehouses={warehouses} color="blue" hasTax={true} hasWarehouse={true} warehouseLabel="Kho Nhập"
+            units={units} onProductCreated={reloadProducts}/>
           {/* Dòng CPMH cố định */}
           <div className={`mt-2 p-3 rounded-lg border-2 ${useCPMH?'border-green-400 bg-blue-50':'border-dashed border-gray-300 bg-gray-50'}`}>
             <div className="flex items-center gap-3">
@@ -6296,6 +6476,7 @@ const App=()=>{
   const [sidebarOpen,setSidebarOpen]=useState(true)
   const [autoOpenPnkId,setAutoOpenPnkId]=useState(null)
   const [autoOpenPxkId,setAutoOpenPxkId]=useState(null)
+  const [autoOpenPnmId,setAutoOpenPnmId]=useState(null)
   const render=()=>{
     switch(page){
       case 'dashboard': return <Dashboard onNav={setPage}/>
@@ -6365,10 +6546,14 @@ const App=()=>{
       case 'nv-pc': return <Payments/>
       case 'nv-ttg': return <BankTxn type="nv-ttg"/>
       case 'nv-ctg': return <BankTxn type="nv-ctg"/>
-      case 'nv-pnm': return <PurchaseInvoice onOpenPnk={(pnkId)=>{setAutoOpenPnkId(pnkId);setPage('nv-pnk')}}/>
+      case 'nv-pnm': return <PurchaseInvoice
+        onOpenPnk={(pnkId)=>{setAutoOpenPnkId(pnkId);setPage('nv-pnk')}}
+        autoOpenPnmId={autoOpenPnmId}
+        onAutoOpenPnmDone={()=>setAutoOpenPnmId(null)}/>
       case 'nv-pbh': return <SalesOrder onOpenPxk={(id)=>{setAutoOpenPxkId(id);setPage('nv-pxk')}}/>
       case 'nv-bl': return <RetailOrder onOpenPxk={(id)=>{setAutoOpenPxkId(id);setPage('nv-pxk')}}/>
-      case 'nv-pnk': return <WarehouseReceiptPage autoOpenPnkId={autoOpenPnkId} onAutoOpenDone={()=>setAutoOpenPnkId(null)}/>
+      case 'nv-pnk': return <WarehouseReceiptPage autoOpenPnkId={autoOpenPnkId} onAutoOpenDone={()=>setAutoOpenPnkId(null)}
+  onNav={(page,id)=>{setPage(page);if(id) setAutoOpenPnmId(id)}}/>
       case 'nv-pxk': return <WarehouseIssuePage autoOpenPxkId={autoOpenPxkId} onAutoOpenDone={()=>setAutoOpenPxkId(null)}/>
       case 'nv-htk': return <HTKFixed/>
       case 'nv-payroll': return <PayrollPageFixed/>
