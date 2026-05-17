@@ -2619,11 +2619,66 @@ const Products=()=>{
   const [data,loading,load]=useList('/products')
   const [modal,setModal]=useState(false)
   const [units,setUnits]=useState([])
+  const [danhMucList,setDanhMucList]=useState([])
+  const [createDMModal,setCreateDMModal]=useState(false)
+  const [newDMForm,setNewDMForm]=useState({code:'',name:'',mo_ta:''})
   const [form,setForm]=useState({MaHH:'',TenHH:'',DVT:'',DanhMuc:'',GiaBan:0,TonKhoToiThieu:10,ConHoatDong:true})
   const [alert,showAlert,closeAlert]=useAlert()
   const sf=k=>e=>setForm(f=>({...f,[k]:e.target.value}))
-  useEffect(()=>{api('GET','/units').then(d=>{ const list=Array.isArray(d)?d:[]; setUnits(list); if(list.length) setForm(f=>({...f,DVT:f.DVT||list[0].name||list[0].code||''})) })}, [])
-  const openModal=()=>setModal(true)
+  useEffect(()=>{
+    api('GET','/units').then(d=>{
+      const list=Array.isArray(d)?d:[]
+      setUnits(list)
+      if(list.length) setForm(f=>({...f,DVT:f.DVT||list[0].name||list[0].code||''}))
+    })
+    loadDanhMuc()
+  },[])
+
+  const loadDanhMuc=()=>{
+    api('GET','/system-config/nhom_vattu').then(d=>{
+      if(!d||d.__error) return
+      // API trả về field 'data' (không phải 'config_data')
+      const raw=d.data||d.config_data
+      if(!raw) return
+      try{
+        const arr=typeof raw==='string'?JSON.parse(raw):raw
+        setDanhMucList(Array.isArray(arr)?arr:[])
+      }catch(e){ setDanhMucList([]) }
+    })
+  }
+  const saveDanhMuc=async()=>{
+    if(!newDMForm.code||!newDMForm.name){showAlert('Vui lòng nhập Mã và Tên nhóm!','danger');return}
+    // Lấy data hiện tại rồi thêm vào
+    const d=await api('GET','/system-config/nhom_vattu')
+    let arr=[]
+    if(d&&!d.__error){
+      const raw=d.data||d.config_data
+      try{ arr=typeof raw==='string'?JSON.parse(raw):raw||[] }catch(e){}
+    }
+    if(arr.find(x=>x.code===newDMForm.code)){showAlert('Mã nhóm đã tồn tại!','danger');return}
+    arr.push({code:newDMForm.code,name:newDMForm.name,mo_ta:newDMForm.mo_ta||''})
+    const r=await api('PUT','/system-config/nhom_vattu',{config_data:JSON.stringify(arr)})
+    if(r&&!r.__error){
+      showAlert('Đã thêm nhóm mới!')
+      setDanhMucList(arr)
+      setForm(f=>({...f,DanhMuc:newDMForm.name}))
+      setCreateDMModal(false)
+      setNewDMForm({code:'',name:'',mo_ta:''})
+    } else showAlert('Lỗi khi lưu nhóm!','danger')
+  }
+
+  const genMaHH=()=>{
+    const maxNum=data.reduce((mx,r)=>{
+      const m=String(r.MaHH||r.code||'').match(/^SP(\d+)$/)
+      return m?Math.max(mx,+m[1]):mx
+    },0)
+    return `SP${String(maxNum+1).padStart(3,'0')}`
+  }
+  const openModal=()=>{
+    const autoMa=genMaHH()
+    setForm(f=>({...f,MaHH:autoMa}))
+    setModal(true)
+  }
   const resetForm=()=>setForm({MaHH:'',TenHH:'',DVT:units.length?units[0].name||units[0].code||'':'',DanhMuc:'',GiaBan:0,TonKhoToiThieu:10,ConHoatDong:true})
   const save=async()=>{
     if(!form.MaHH||!form.TenHH){showAlert('Vui lòng nhập Mã HH và Tên HH!','danger');return}
@@ -2649,13 +2704,45 @@ const Products=()=>{
         <Inp label="Mã HH (MaHH)" req value={form.MaHH} onChange={sf('MaHH')} placeholder="SP-001"/>
         <Inp label="Tên HH (TenHH)" req value={form.TenHH} onChange={sf('TenHH')}/>
         <Sel label="Đơn Vị Tính (DVT)" req value={form.DVT} onChange={sf('DVT')} options={unitOptions}/>
-        <Inp label="Danh Mục (DanhMuc)" value={form.DanhMuc} onChange={sf('DanhMuc')}/>
+        <div>
+          <label className="block text-xs font-semibold text-gray-600 mb-1">Danh Mục</label>
+          <ComboSelect
+            value={danhMucList.find(x=>x.name===form.DanhMuc||x.code===form.DanhMuc)?.code||''}
+            onChange={(_,item)=>setForm(f=>({...f,DanhMuc:item?.name||''}))}
+            items={danhMucList.map(d=>({id:d.code,code:d.code,name:d.name}))}
+            placeholder="-- Tìm hoặc tạo nhóm --"
+            onRequestCreate={(q)=>{
+              setNewDMForm({code:q.toUpperCase().replace(/\s/g,'').slice(0,10),name:q,mo_ta:''})
+              setCreateDMModal(true)
+            }}
+          />
+        </div>
         <Inp label="Giá Bán (GiaBan)" type="number" value={form.GiaBan} onChange={sf('GiaBan')}/>
         <Inp label="Tồn Tối Thiểu" type="number" value={form.TonKhoToiThieu} onChange={sf('TonKhoToiThieu')}/>
       </div>
       {!units.length&&<p className="text-xs text-yellow-600 bg-yellow-50 border border-yellow-200 rounded px-3 py-2 mt-3">⚠️ Chưa có đơn vị tính — vào <b>Danh Mục → Đơn Vị Tính</b> để thêm trước.</p>}
       <div className="flex justify-end gap-2 mt-4"><Btn v="outline" onClick={()=>setModal(false)}>Hủy</Btn><Btn onClick={save}>💾 Lưu</Btn></div>
     </Modal>
+    
+ {createDMModal&&<Modal open={createDMModal} onClose={()=>setCreateDMModal(false)} title="📂 Tạo Nhóm Vật Tư Mới">
+      {alert&&<Alert msg={alert.msg} type={alert.type} onClose={closeAlert}/>}
+      <div className="grid grid-cols-2 gap-3">
+        <Inp label="Mã Nhóm" req value={newDMForm.code}
+          onChange={e=>setNewDMForm(f=>({...f,code:e.target.value.toUpperCase()}))}
+          placeholder="HH"/>
+        <Inp label="Tên Nhóm" req value={newDMForm.name}
+          onChange={e=>setNewDMForm(f=>({...f,name:e.target.value}))}
+          placeholder="Hàng hóa thương mại"/>
+        <div className="col-span-2">
+          <Inp label="Mô Tả" value={newDMForm.mo_ta}
+            onChange={e=>setNewDMForm(f=>({...f,mo_ta:e.target.value}))}/>
+        </div>
+      </div>
+      <div className="flex justify-end gap-2 mt-4">
+        <Btn v="outline" onClick={()=>setCreateDMModal(false)}>Hủy</Btn>
+        <Btn onClick={saveDanhMuc}>💾 Tạo & Dùng Ngay</Btn>
+      </div>
+    </Modal>}
   </div>)
 }
 
