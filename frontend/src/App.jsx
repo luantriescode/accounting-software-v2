@@ -1920,6 +1920,10 @@ const PayrollPage=()=>{
   const [editData,setEditData]=useState(null)
   const [editSaving,setEditSaving]=useState(false)
   const [alert,showAlert,closeAlert]=useAlert()
+  const [filterNV,setFilterNV]=useState('')
+  const [filterTuNgay,setFilterTuNgay]=useState('')
+  const [filterDenNgay,setFilterDenNgay]=useState('')
+  const [filterKy,setFilterKy]=useState('')
 
   const load=()=>{
     setLoading(true)
@@ -1929,6 +1933,17 @@ const PayrollPage=()=>{
     load()
     api('GET','/employees').then(d=>setEmployees(Array.isArray(d)?d:[]))
   },[])
+  const filteredData=data.filter(r=>{
+  if(filterKy&&String(r.ky_ke_toan_id)!==String(filterKy)) return false
+  if(filterTuNgay&&r.ngay_chung_tu<filterTuNgay) return false
+  if(filterDenNgay&&r.ngay_chung_tu>filterDenNgay) return false
+  if(filterNV){
+    const q=filterNV.toLowerCase()
+    const match=(r.ten_nv_list||[]).some(n=>n.toLowerCase().includes(q))
+    if(!match) return false
+  }
+  return true
+})
 
   const openDetail=async(row)=>{
     setDetailOpen(true)
@@ -2042,10 +2057,59 @@ const PayrollPage=()=>{
       <CH>
         <h3 className="font-bold">👥 Chứng Từ Thanh Toán Lương</h3>
         <div className="ml-auto flex gap-2">
-          <Btn v="excel" size="sm">⬇ Bảng Lương</Btn>
+          <Btn v="excel" size="sm" onClick={()=>exportExcel(
+              'BangLuong',`Bảng Lương`,
+              ['Số CT','Ngày','Kỳ KT','Tổng Thu Nhập','Tổng Giảm Trừ','Thực Lãnh','Trạng Thái'],
+              filteredData.map(r=>[
+                r.so_chung_tu,
+                fmtDate(r.ngay_chung_tu),
+                kyList.find(k=>String(k.id)===String(r.ky_ke_toan_id))?.TenKy||r.ky_ke_toan_id,
+                r.tong_thu_nhap,
+                r.tong_giam_tru,
+                r.tong_thuc_lanh,
+                r.trang_thai||'DRAFT'
+              ])
+            )}>⬇ Bảng Lương</Btn>
         </div>
       </CH>
-      <Tbl data={data} loading={loading} empty="Chưa có chứng từ lương" cols={[
+      <div className="flex gap-3 px-4 py-2 bg-gray-50 border-b border-gray-200 flex-wrap">
+        <div className="w-44">
+          <label className="text-xs text-gray-500 mb-1 block">📅 Kỳ KT</label>
+          <select value={filterKy} onChange={e=>setFilterKy(e.target.value)}
+            className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs bg-white">
+            <option value="">Tất cả kỳ</option>
+            {kyOptions.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </div>
+        <div className="w-36">
+          <label className="text-xs text-gray-500 mb-1 block">📅 Từ ngày</label>
+          <input type="date" value={filterTuNgay} onChange={e=>setFilterTuNgay(e.target.value)}
+            className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs"/>
+        </div>
+        <div className="w-36">
+          <label className="text-xs text-gray-500 mb-1 block">📅 Đến ngày</label>
+          <input type="date" value={filterDenNgay} onChange={e=>setFilterDenNgay(e.target.value)}
+            className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs"/>
+        </div>
+        <div className="flex-1 min-w-36">
+          <label className="text-xs text-gray-500 mb-1 block">👤 Tên Nhân Viên</label>
+          <input value={filterNV} onChange={e=>setFilterNV(e.target.value)}
+            placeholder="Tìm tên NV..."
+            className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs"/>
+        </div>
+        {(filterKy||filterTuNgay||filterDenNgay||filterNV)&&
+          <div className="flex items-end">
+            <button onClick={()=>{setFilterKy('');setFilterTuNgay('');setFilterDenNgay('');setFilterNV('')}}
+              className="px-3 py-1.5 text-xs text-gray-500 hover:text-red-500 border border-gray-300 rounded">
+              ✕ Xóa lọc
+            </button>
+          </div>
+        }
+        <div className="flex items-end ml-auto">
+          <span className="text-xs text-gray-400">{filteredData.length}/{data.length} phiếu</span>
+        </div>
+      </div>
+      <Tbl data={filteredData} loading={loading} empty="Chưa có chứng từ lương" cols={[
           {k:'so_chung_tu',l:'Số CT',w:'150px',fn:(v,r)=>(
             <button onClick={()=>openDetail(r)}
               className="text-blue-600 hover:underline font-mono text-xs font-semibold">
@@ -2061,6 +2125,30 @@ const PayrollPage=()=>{
           {k:'tong_giam_tru',l:'Tổng Giảm Trừ',r:true,fn:v=><span className="text-red-600">{fmt(v)}</span>},
           {k:'tong_thuc_lanh',l:'Thực Lãnh',r:true,fn:v=><span className="text-green-700 font-bold">{fmt(v)}</span>},
           {k:'trang_thai',l:'TT',w:'90px',fn:v=><Badge v={v==='POSTED'?'success':'warning'}>{v||'DRAFT'}</Badge>},
+          {k:'id',l:'',w:'50px',fn:(_,r)=>(
+            <button title="Xuất Excel chi tiết"
+              onClick={async(e)=>{
+                e.stopPropagation()
+                const detail=await api('GET',`/payroll/${r.id}`)
+                if(!detail||detail.__error){return}
+                const kyName=kyList.find(k=>String(k.id)===String(r.ky_ke_toan_id))?.TenKy||r.ky_ke_toan_id
+                exportExcel(
+                  `BangLuong_${r.so_chung_tu}`,
+                  `Bảng Lương — ${r.so_chung_tu} — ${kyName}`,
+                  ['Mã NV','Họ Tên','Chức Vụ','Phòng Ban','Lương SP','Số Công','Lương TG',
+                  'Lương Nghỉ','PC Quỹ','PC Khác','Thưởng','Tổng TN','BHXH','BHYT','BHTN','Tổng KT','Thực Lãnh'],
+                  (detail.details||[]).map(d=>[
+                    d.ma_nv, d.ten_nv, d.chuc_vu||'', d.phong_ban||'',
+                    d.tien_luong_sp, d.so_cong, d.luong_thoi_gian,
+                    d.tien_luong_nghi, d.pc_tu_quy_luong, d.phu_cap_khac, d.tien_thuong,
+                    d.tong_tien, d.tru_bhxh, d.tru_bhyt, d.tru_bhtn, d.tong_tru, d.thuc_lanh
+                  ])
+                )
+              }}
+              className="text-green-600 hover:text-green-800 text-lg">
+             📊
+            </button>
+          )},
         ]}/>
     </Card>
 

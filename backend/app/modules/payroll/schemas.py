@@ -85,6 +85,7 @@ class PayrollResponse(BaseModel):
     tong_giam_tru: float
     tong_thuc_lanh: float
     trang_thai: str
+    ten_nv_list: Optional[list[str]] = None
     details: Optional[list[PayrollDetailResponse]] = None
 
 class PayrollUpdate(BaseModel):

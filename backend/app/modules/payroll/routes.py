@@ -181,18 +181,28 @@ def create_payroll(data: PayrollCreate, db: Session = Depends(get_db)):
 @router.get("/payroll", response_model=list[PayrollResponse])
 def get_payroll(db: Session = Depends(get_db)):
     payrolls = db.query(PayrollMaster).all()
-    return [
-        PayrollResponse(
+    result = []
+    for p in payrolls:
+        # Lấy danh sách tên NV trong phiếu
+        details = db.query(PayrollDetail).filter(PayrollDetail.payroll_id == p.id).all()
+        ten_nv_list = []
+        for d in details:
+            emp = db.query(Employee).filter(Employee.id == d.employee_id).first()
+            if emp:
+                ten_nv_list.append(emp.ten_nv)
+        result.append(PayrollResponse(
             id=p.id,
             so_chung_tu=p.so_chung_tu,
             ngay_chung_tu=p.ngay_chung_tu,
             ky_ke_toan_id=p.period_id,
+            dien_giai=p.dien_giai,
             tong_thu_nhap=float(p.tong_thu_nhap),
             tong_giam_tru=float(p.tong_giam_tru),
             tong_thuc_lanh=float(p.tong_thuc_lanh),
-            trang_thai=p.trang_thai
-        ) for p in payrolls
-    ]
+            trang_thai=p.trang_thai,
+            ten_nv_list=ten_nv_list,
+        ))
+    return result
 
 @router.get("/payroll/{id}", response_model=PayrollResponse)
 def get_payroll_detail(id: int, db: Session = Depends(get_db)):
