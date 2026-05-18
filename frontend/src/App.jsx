@@ -1904,302 +1904,310 @@ const WarehouseIssuePage=({autoOpenPxkId=null,onAutoOpenDone=null,onNav=null})=>
 
 
 // ══ THANH TOÁN LƯƠNG - Tạo CTL + Tính lương + Xuất Excel
-const PayrollPageFixed=()=>{
-  const [data,loading,load]=useList('/payroll')
-  const [tab,setTab]=useState('list')
+const PayrollPage=()=>{
+  const {kyList,options:kyOptions}=useKyKeToan()
+  const [data,setData]=useState([])
+  const [loading,setLoading]=useState(false)
   const [employees,setEmployees]=useState([])
-  const [cfg,setCfg]=useState({ty_le_bhxh:8,ty_le_bhyt:1.5,ty_le_bhtn:1})
-  const {options:kyOptions,defaultKy:kyDefault}=useKyKeToan()  // ← THÊM DÒNG NÀY
+
+  // Detail modal
+  const [detailOpen,setDetailOpen]=useState(false)
+  const [detailData,setDetailData]=useState(null)
+  const [detailLoading,setDetailLoading]=useState(false)
+
+  // Edit modal
+  const [editOpen,setEditOpen]=useState(false)
+  const [editData,setEditData]=useState(null)
+  const [editSaving,setEditSaving]=useState(false)
   const [alert,showAlert,closeAlert]=useAlert()
 
-  const makeNewSoCT=(list)=>{
-    const ym=new Date().toISOString().slice(0,7).replace('-','')
-    const pre=`CTL-${ym}`
-    const maxNum=(list||[]).reduce((mx,r)=>{
-      const soct=r.so_chung_tu||''
-      if(!soct.startsWith(pre)) return mx
-      const n=parseInt(soct.split('-').pop())||0
-      return n>mx?n:mx
-    },0)
-    return `${pre}-${String(maxNum+1).padStart(3,'0')}`
+  const load=()=>{
+    setLoading(true)
+    api('GET','/payroll').then(d=>{setData(Array.isArray(d)?d:[]);setLoading(false)})
   }
-
-  const makeEmptyForm=(list=[])=>({
-    so_chung_tu: makeNewSoCT(list),
-    ngay_chung_tu: today(),
-    ky_ke_toan_id: kyDefault||1,
-    dien_giai: ''
-  })
-
-  const [form,setForm]=useState(()=>makeEmptyForm())
-  const [luongRows,setLuongRows]=useState([])
-  const sf=k=>e=>setForm(f=>({...f,[k]:e.target.value}))
-
   useEffect(()=>{
-    api('GET','/employees').then(d=>{
-      if(Array.isArray(d)){
-        setEmployees(d)
-        setLuongRows(d.map(e=>({
-          employee_id:e.id,
-          ma_nv:e.ma_nv,
-          ten_nv:e.ten_nv,
-          luong_co_ban:e.luong_co_ban||0,
-          so_cong:26,
-          phu_cap:0,
-          tien_thuong:0,
-        })))
-      }
-    })
-    api('GET','/payroll-config').then(d=>{if(d&&!d.__error)setCfg(d)})
+    load()
+    api('GET','/employees').then(d=>setEmployees(Array.isArray(d)?d:[]))
   },[])
 
-  useEffect(()=>{
-    if(!loading&&tab==='list') setForm(f=>({...f,so_chung_tu:makeNewSoCT(data)}))
-  },[data,loading])
-
-  const calcRow=(r)=>{
-    const tong=(+r.luong_co_ban)+(+r.phu_cap)+(+r.tien_thuong)
-    const bhxh=Math.round(tong*(cfg.ty_le_bhxh||8)/100)
-    const bhyt=Math.round(tong*(cfg.ty_le_bhyt||1.5)/100)
-    const bhtn=Math.round(tong*(cfg.ty_le_bhtn||1)/100)
-    const thuc=tong-bhxh-bhyt-bhtn
-    return{...r,tong_thu_nhap:tong,tru_bhxh:bhxh,tru_bhyt:bhyt,tru_bhtn:bhtn,tong_tru:bhxh+bhyt+bhtn,thuc_lanh:thuc}
+  const openDetail=async(row)=>{
+    setDetailOpen(true)
+    setDetailLoading(true)
+    setDetailData(null)
+    const r=await api('GET',`/payroll/${row.id}`)
+    setDetailData(r)
+    setDetailLoading(false)
   }
 
-  const rowsCalc=luongRows.map(calcRow)
-  const tongThuNhap=rowsCalc.reduce((s,r)=>s+r.tong_thu_nhap,0)
-  const tongTru=rowsCalc.reduce((s,r)=>s+r.tong_tru,0)
-  const tongThucLanh=rowsCalc.reduce((s,r)=>s+r.thuc_lanh,0)
-
-  const upd=(i,k,v)=>setLuongRows(rs=>rs.map((r,ri)=>ri===i?{...r,[k]:+v}:r))
-
-  const save=async()=>{
-  if(!form.so_chung_tu){
-    showAlert('Vui lòng nhập Số CT!','danger'); return
+  const openEdit=async(row)=>{
+    setDetailOpen(false)
+    setEditOpen(true)
+    setEditSaving(false)
+    const r=await api('GET',`/payroll/${row.id}`)
+    setEditData({
+      id: r.id,
+      so_chung_tu: r.so_chung_tu,
+      ngay_chung_tu: r.ngay_chung_tu,
+      ky_ke_toan_id: String(r.ky_ke_toan_id),
+      dien_giai: r.dien_giai||'',
+      details: (r.details||[]).map(d=>({
+        employee_id: String(d.employee_id),
+        ma_nv: d.ma_nv,
+        ten_nv: d.ten_nv,
+        so_luong_sp: d.so_luong_sp||0,
+        tien_luong_sp: d.tien_luong_sp||0,
+        so_cong: d.so_cong||0,
+        luong_thoi_gian: d.luong_thoi_gian||0,
+        tien_luong_nghi: d.tien_luong_nghi||0,
+        pc_tu_quy_luong: d.pc_tu_quy_luong||0,
+        phu_cap_khac: d.phu_cap_khac||0,
+        tien_thuong: d.tien_thuong||0,
+      }))
+    })
   }
-  if(!rowsCalc.length){
-    showAlert('Chưa có nhân viên! Vào Danh Mục → Nhân Viên để thêm.','danger'); return
+
+  const saveEdit=async()=>{
+    if(!editData.ky_ke_toan_id){showAlert('Vui lòng chọn Kỳ Kế Toán!','danger');return}
+    if(!editData.details?.length){showAlert('Danh sách nhân viên không được rỗng!','danger');return}
+    setEditSaving(true)
+    const body={
+      so_chung_tu: editData.so_chung_tu,
+      ngay_chung_tu: editData.ngay_chung_tu,
+      ky_ke_toan_id: Number(editData.ky_ke_toan_id),
+      dien_giai: editData.dien_giai,
+      details: editData.details.map(d=>({
+        employee_id: Number(d.employee_id),
+        so_luong_sp: Number(d.so_luong_sp)||0,
+        tien_luong_sp: Number(d.tien_luong_sp)||0,
+        so_cong: Number(d.so_cong)||0,
+        luong_thoi_gian: Number(d.luong_thoi_gian)||0,
+        tien_luong_nghi: Number(d.tien_luong_nghi)||0,
+        pc_tu_quy_luong: Number(d.pc_tu_quy_luong)||0,
+        phu_cap_khac: Number(d.phu_cap_khac)||0,
+        tien_thuong: Number(d.tien_thuong)||0,
+      }))
+    }
+    const r=await api('PUT',`/payroll/${editData.id}`,body)
+    if(r&&!r.__error){
+      showAlert('✅ Lưu chứng từ lương thành công!')
+      setEditOpen(false)
+      load()
+    }else{
+      showAlert('Lỗi lưu: '+(r?.message||'Lỗi không xác định'),'danger')
+    }
+    setEditSaving(false)
   }
 
-  // Build body đúng theo PayrollCreate schema
-  const body={
-    so_chung_tu: form.so_chung_tu,
-    ngay_chung_tu: form.ngay_chung_tu,
-    ky_ke_toan_id: +form.ky_ke_toan_id,
-    dien_giai: form.dien_giai||'',
-    details: rowsCalc.map(r=>({
-      employee_id: +r.employee_id,
-      so_luong_sp: 0,
-      tien_luong_sp: 0,
-      so_cong: +(r.so_cong||26),
-      luong_thoi_gian: +(r.luong_co_ban||0),
-      cong_nghi_tinh_luong: 0,
-      tien_luong_nghi: 0,
-      pc_tu_quy_luong: +(r.phu_cap||0),
-      phu_cap_khac: 0,
-      tien_thuong: +(r.tien_thuong||0),
+  const setEditRow=(i,field,val)=>{
+    setEditData(prev=>({...prev,
+      details: prev.details.map((d,idx)=>idx===i?{...d,[field]:val}:d)
     }))
   }
 
-  // Log để debug
-  console.log('Payroll body:', JSON.stringify(body, null, 2))
-
-  const r=await api('POST','/payroll',body)
-  if(r&&!r.__error){
-    showAlert(`Tạo CTL ${form.so_chung_tu} thành công!`)
-    const newData=await api('GET','/payroll')
-    setForm(makeEmptyForm(Array.isArray(newData)?newData:[]))
-    load()
-    setTab('list')
-  } else {
-    showAlert('Lỗi: '+(r?.message||'Tạo CTL thất bại - kiểm tra console'),'danger')
-    console.error('Payroll error:', r)
+  const addEditRow=()=>{
+    setEditData(prev=>({...prev,
+      details:[...prev.details,{
+        employee_id:'',ma_nv:'',ten_nv:'',
+        so_luong_sp:0,tien_luong_sp:0,so_cong:0,
+        luong_thoi_gian:0,tien_luong_nghi:0,
+        pc_tu_quy_luong:0,phu_cap_khac:0,tien_thuong:0
+      }]
+    }))
   }
-}
 
-  const doExcelBangLuong=()=>exportExcel(
-    `BangLuong_${form.so_chung_tu||'CTL'}`,
-    'Bảng Lương',
-    ['Mã NV','Tên NV','Lương CB','Phụ Cấp','Thưởng','Tổng TN','BHXH','BHYT','BHTN','Tổng Trừ','Thực Lãnh'],
-    rowsCalc.map(r=>[r.ma_nv,r.ten_nv,r.luong_co_ban,r.phu_cap,r.tien_thuong,
-      r.tong_thu_nhap,r.tru_bhxh,r.tru_bhyt,r.tru_bhtn,r.tong_tru,r.thuc_lanh])
-  )
+  const removeEditRow=(i)=>{
+    setEditData(prev=>({...prev,
+      details:prev.details.filter((_,idx)=>idx!==i)
+    }))
+  }
 
-  const doExcelList=()=>exportExcel('DanhSachCTL','Chứng Từ Lương',
-    ['Số CT','Ngày CT','Tổng TN','Tổng Giảm Trừ','Thực Lãnh','TT'],
-    data.map(r=>[r.so_chung_tu,fmtDate(r.ngay_chung_tu),r.tong_thu_nhap,r.tong_giam_tru,r.tong_thuc_lanh,r.trang_thai])
-  )
+  const onSelectEmployee=(i,empId)=>{
+    const emp=employees.find(e=>String(e.id)===String(empId))
+    if(!emp) return
+    setEditData(prev=>({...prev,
+      details:prev.details.map((d,idx)=>idx===i?{
+        ...d,
+        employee_id:String(emp.id),
+        ma_nv:emp.ma_nv,
+        ten_nv:emp.ten_nv,
+        luong_thoi_gian:emp.luong_co_ban||0,
+      }:d)
+    }))
+  }
 
   return(<div className="space-y-4">
     {alert&&<Alert msg={alert.msg} type={alert.type} onClose={closeAlert}/>}
 
-    <Tabs tabs={[
-      {id:'list',label:'📋 Danh Sách CTL'},
-      {id:'create',label:'+ Tạo Chứng Từ Lương'}
-    ]} active={tab}
-      onChange={t=>{
-        setTab(t)
-        if(t==='create') setForm(f=>({...f,so_chung_tu:makeNewSoCT(data)}))
-      }}/>
-
-    {/* ── DANH SÁCH ── */}
-    {tab==='list'&&<Card>
+    <Card>
       <CH>
-        <h3 className="font-bold">👥 Danh Sách Chứng Từ Thanh Toán Lương</h3>
+        <h3 className="font-bold">👥 Chứng Từ Thanh Toán Lương</h3>
         <div className="ml-auto flex gap-2">
-          <Btn v="excel" size="sm" onClick={doExcelList}>⬇ Excel Danh Sách</Btn>
+          <Btn v="excel" size="sm">⬇ Bảng Lương</Btn>
         </div>
       </CH>
-      <Tbl data={data} loading={loading} empty="Chưa có chứng từ lương. Nhấn + Tạo để lập bảng lương." cols={[
-        {k:'so_chung_tu',l:'Số CT',w:'130px',fn:v=><Code v={v}/>},
-        {k:'ngay_chung_tu',l:'Ngày',w:'100px',fn:v=>fmtDate(v)},
-        {k:'dien_giai',l:'Diễn Giải'},
-        {k:'tong_thu_nhap',l:'Tổng Thu Nhập',r:true,fn:v=>fmt(v)},
-        {k:'tong_giam_tru',l:'Tổng Giảm Trừ',r:true,
-          fn:v=><span className="text-red-600">{fmt(v)}</span>},
-        {k:'tong_thuc_lanh',l:'Thực Lãnh',r:true,
-          fn:v=><span className="text-green-700 font-bold">{fmt(v)}</span>},
-        {k:'trang_thai',l:'TT',w:'90px',
-          fn:v=><Badge v={v==='POSTED'?'success':'warning'}>{v||'DRAFT'}</Badge>},
-      ]}/>
-    </Card>}
+      <Tbl data={data} loading={loading} empty="Chưa có chứng từ lương" cols={[
+          {k:'so_chung_tu',l:'Số CT',w:'150px',fn:(v,r)=>(
+            <button onClick={()=>openDetail(r)}
+              className="text-blue-600 hover:underline font-mono text-xs font-semibold">
+              {v||'-'}
+            </button>
+          )},
+          {k:'ngay_chung_tu',l:'Ngày',w:'100px',fn:v=>fmtDate(v)},
+          {k:'ky_ke_toan_id',l:'Kỳ KT',w:'80px',fn:v=>{
+            const ky=kyList.find(k=>String(k.id)===String(v))
+            return<span className="text-xs">{ky?.MaKy||ky?.period_code||v}</span>
+          }},
+          {k:'tong_thu_nhap',l:'Tổng Thu Nhập',r:true,fn:v=>fmt(v)},
+          {k:'tong_giam_tru',l:'Tổng Giảm Trừ',r:true,fn:v=><span className="text-red-600">{fmt(v)}</span>},
+          {k:'tong_thuc_lanh',l:'Thực Lãnh',r:true,fn:v=><span className="text-green-700 font-bold">{fmt(v)}</span>},
+          {k:'trang_thai',l:'TT',w:'90px',fn:v=><Badge v={v==='POSTED'?'success':'warning'}>{v||'DRAFT'}</Badge>},
+        ]}/>
+    </Card>
 
-    {/* ── TẠO MỚI ── */}
-    {tab==='create'&&<div className="space-y-4">
-      {/* Thông tin chứng từ */}
-      <Card>
-        <CH><h3 className="font-bold">📋 Thông Tin Chứng Từ Lương</h3></CH>
-        <CB>
-          <div className="grid grid-cols-3 gap-3">
-            <Inp label="Số CT" req value={form.so_chung_tu}
-              onChange={sf('so_chung_tu')} hint="Tự sinh, có thể sửa"/>
-            <Inp label="Ngày CT" req type="date" value={form.ngay_chung_tu}
-              onChange={sf('ngay_chung_tu')}/>
-            <Sel label="Kỳ Kế Toán" value={form.ky_ke_toan_id}
-              onChange={sf('ky_ke_toan_id')} options={kyOptions}/>
-            <div className="col-span-3">
-              <Inp label="Diễn Giải" value={form.dien_giai}
-                onChange={sf('dien_giai')} placeholder="Lương tháng .../..."/>
-            </div>
-          </div>
-        </CB>
-      </Card>
+    {/* ── DETAIL MODAL ── */}
+    <Modal open={detailOpen} title={`📋 Chi Tiết CTL — ${detailData?.so_chung_tu||''}`} onClose={()=>setDetailOpen(false)} size="xl">
+      {detailLoading?<div className="py-8 text-center text-gray-400">Đang tải...</div>:detailData&&<>
+        <div className="grid grid-cols-2 gap-4 mb-4 text-sm">
+          <div><span className="text-gray-500">Số CT:</span> <strong>{detailData.so_chung_tu}</strong></div>
+          <div><span className="text-gray-500">Ngày:</span> <strong>{fmtDate(detailData.ngay_chung_tu)}</strong></div>
+          <div><span className="text-gray-500">Kỳ KT:</span> <strong>{kyList.find(k=>String(k.id)===String(detailData.ky_ke_toan_id))?.TenKy||detailData.ky_ke_toan_id}</strong></div>
+          <div><span className="text-gray-500">Trạng thái:</span> <Badge v="warning">{detailData.trang_thai}</Badge></div>
+          {detailData.dien_giai&&<div className="col-span-2"><span className="text-gray-500">Diễn giải:</span> {detailData.dien_giai}</div>}
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead className="bg-gray-50 border-b-2 border-gray-200">
+              <tr>
+                <th className="px-2 py-2 text-left">Mã NV</th>
+                <th className="px-2 py-2 text-left">Họ Tên</th>
+                <th className="px-2 py-2 text-left">Chức Vụ</th>
+                <th className="px-2 py-2 text-right">SL SP</th>
+                <th className="px-2 py-2 text-right">Lương SP</th>
+                <th className="px-2 py-2 text-right">Số Công</th>
+                <th className="px-2 py-2 text-right">Lương TG</th>
+                <th className="px-2 py-2 text-right">Phụ Cấp</th>
+                <th className="px-2 py-2 text-right">Thưởng</th>
+                <th className="px-2 py-2 text-right font-bold">Tổng TN</th>
+                <th className="px-2 py-2 text-right text-red-600">BHXH</th>
+                <th className="px-2 py-2 text-right text-red-600">BHYT</th>
+                <th className="px-2 py-2 text-right text-red-600">BHTN</th>
+                <th className="px-2 py-2 text-right font-bold text-green-700">Thực Lãnh</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {(detailData.details||[]).map((d,i)=>(
+                <tr key={i} className="hover:bg-gray-50">
+                  <td className="px-2 py-1.5"><Code v={d.ma_nv}/></td>
+                  <td className="px-2 py-1.5 font-medium">{d.ten_nv}</td>
+                  <td className="px-2 py-1.5 text-gray-500">{d.chuc_vu||'—'}</td>
+                  <td className="px-2 py-1.5 text-right">{fmtN(d.so_luong_sp)}</td>
+                  <td className="px-2 py-1.5 text-right">{fmt(d.tien_luong_sp)}</td>
+                  <td className="px-2 py-1.5 text-right">{fmtN(d.so_cong)}</td>
+                  <td className="px-2 py-1.5 text-right">{fmt(d.luong_thoi_gian)}</td>
+                  <td className="px-2 py-1.5 text-right">{fmt((+d.pc_tu_quy_luong||0)+(+d.phu_cap_khac||0))}</td>
+                  <td className="px-2 py-1.5 text-right">{fmt(d.tien_thuong)}</td>
+                  <td className="px-2 py-1.5 text-right font-bold">{fmt(d.tong_tien)}</td>
+                  <td className="px-2 py-1.5 text-right text-red-600">{fmt(d.tru_bhxh)}</td>
+                  <td className="px-2 py-1.5 text-right text-red-600">{fmt(d.tru_bhyt)}</td>
+                  <td className="px-2 py-1.5 text-right text-red-600">{fmt(d.tru_bhtn)}</td>
+                  <td className="px-2 py-1.5 text-right font-bold text-green-700">{fmt(d.thuc_lanh)}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot className="bg-gray-100 border-t-2 border-gray-300">
+              <tr>
+                <td colSpan={9} className="px-2 py-2 font-bold text-sm">Tổng:</td>
+                <td className="px-2 py-2 text-right font-bold">{fmt(detailData.tong_thu_nhap)}</td>
+                <td colSpan={3} className="px-2 py-2 text-right font-bold text-red-600">{fmt(detailData.tong_giam_tru)}</td>
+                <td className="px-2 py-2 text-right font-bold text-green-700">{fmt(detailData.tong_thuc_lanh)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+        <div className="flex justify-end gap-2 mt-4">
+          {detailData.trang_thai!=='POSTED'&&
+            <Btn v="warning" onClick={()=>openEdit(detailData)}>✏️ Sửa Phiếu</Btn>}
+          <Btn onClick={()=>setDetailOpen(false)}>Đóng</Btn>
+        </div>
+      </>}
+    </Modal>
+    
 
-      {/* Bảng tính lương */}
-      <Card>
-        <CH>
-          <h3 className="font-bold">📊 Bảng Tính Lương</h3>
-          <div className="ml-2 text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-            BHXH {cfg.ty_le_bhxh}% | BHYT {cfg.ty_le_bhyt}% | BHTN {cfg.ty_le_bhtn}%
-          </div>
-          <div className="ml-auto">
-            <Btn v="excel" size="sm" onClick={doExcelBangLuong}>⬇ Xuất Excel Bảng Lương</Btn>
-          </div>
-        </CH>
+    {/* ── EDIT MODAL ── */}
+    <Modal open={editOpen&&!!editData} title={`✏️ Sửa CTL — ${editData?.so_chung_tu||''}`} onClose={()=>setEditOpen(false)} size="xl">
+  {!editData?<div className="py-8 text-center text-gray-400">Đang tải...</div>:
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-3">
+          <Inp label="Số Chứng Từ" req value={editData.so_chung_tu}
+            onChange={e=>setEditData(p=>({...p,so_chung_tu:e.target.value}))}/>
+          <Inp label="Ngày" req type="date" value={editData.ngay_chung_tu}
+            onChange={e=>setEditData(p=>({...p,ngay_chung_tu:e.target.value}))}/>
+          <Sel label="Kỳ Kế Toán" req value={editData.ky_ke_toan_id}
+            onChange={e=>setEditData(p=>({...p,ky_ke_toan_id:e.target.value}))}
+            options={kyOptions}/>
+          <Inp label="Diễn Giải" value={editData.dien_giai}
+            onChange={e=>setEditData(p=>({...p,dien_giai:e.target.value}))}/>
+        </div>
 
-        {luongRows.length===0
-          ?<CB>
-            <div className="text-center py-8 text-gray-400">
-              <div className="text-4xl mb-3">👤</div>
-              <p className="font-medium">Chưa có nhân viên nào</p>
-              <p className="text-xs mt-1">Vào <b>Danh Mục → Nhân Viên</b> để thêm nhân viên trước</p>
-            </div>
-          </CB>
-          :<div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b-2 border-gray-200">
+        {/* Bảng nhân viên */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <span className="font-bold text-sm">Danh Sách Nhân Viên</span>
+            <Btn size="sm" onClick={addEditRow}>+ Thêm dòng</Btn>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="px-3 py-2 text-left text-xs font-bold uppercase w-24">Mã NV</th>
-                  <th className="px-3 py-2 text-left text-xs font-bold uppercase">Tên Nhân Viên</th>
-                  <th className="px-3 py-2 text-right text-xs font-bold uppercase w-32">Lương CB</th>
-                  <th className="px-3 py-2 text-right text-xs font-bold uppercase w-28">Phụ Cấp</th>
-                  <th className="px-3 py-2 text-right text-xs font-bold uppercase w-28">Thưởng</th>
-                  <th className="px-3 py-2 text-right text-xs font-bold text-blue-700 uppercase w-32">Tổng TN</th>
-                  <th className="px-3 py-2 text-right text-xs font-bold text-orange-600 uppercase w-24">BHXH</th>
-                  <th className="px-3 py-2 text-right text-xs font-bold text-orange-600 uppercase w-24">BHYT</th>
-                  <th className="px-3 py-2 text-right text-xs font-bold text-orange-600 uppercase w-24">BHTN</th>
-                  <th className="px-3 py-2 text-right text-xs font-bold text-green-700 uppercase w-32">Thực Lãnh</th>
+                  <th className="px-2 py-2 text-left w-44">Nhân Viên</th>
+                  <th className="px-2 py-2 text-right w-20">SL SP</th>
+                  <th className="px-2 py-2 text-right w-24">Lương SP</th>
+                  <th className="px-2 py-2 text-right w-20">Số Công</th>
+                  <th className="px-2 py-2 text-right w-28">Lương TG</th>
+                  <th className="px-2 py-2 text-right w-24">Lương Nghỉ</th>
+                  <th className="px-2 py-2 text-right w-24">PC Quỹ</th>
+                  <th className="px-2 py-2 text-right w-24">PC Khác</th>
+                  <th className="px-2 py-2 text-right w-24">Thưởng</th>
+                  <th className="px-2 py-2 w-8"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {rowsCalc.map((r,i)=>(
-                  <tr key={i} className="hover:bg-gray-50">
-                    <td className="px-3 py-2"><Code v={r.ma_nv}/></td>
-                    <td className="px-4 py-2 font-medium ">{r.ten_nv}</td>
-                    <td className="px-2 py-1.5">
-                      <input type="number" value={r.luong_co_ban}
-                        onChange={e=>upd(i,'luong_co_ban',e.target.value)}
-                        className="w-full px-2 py-1 border border-gray-300 rounded text-xs text-right focus:outline-none focus:ring-1 focus:ring-blue-500"/>
+                {editData.details.map((d,i)=>(
+                  <tr key={i}>
+                    <td className="px-1 py-1">
+                      <select value={d.employee_id||''} onChange={e=>onSelectEmployee(i,e.target.value)}
+                        className="w-full px-1.5 py-1 border border-gray-300 rounded text-xs bg-white">
+                        <option value="">-- Chọn NV --</option>
+                        {employees.map(e=><option key={e.id} value={e.id}>{e.ma_nv} — {e.ten_nv}</option>)}
+                      </select>
                     </td>
-                    <td className="px-2 py-1.5">
-                      <input type="number" value={r.phu_cap}
-                        onChange={e=>upd(i,'phu_cap',e.target.value)}
-                        className="w-full px-2 py-1 border border-gray-300 rounded text-xs text-right focus:outline-none focus:ring-1 focus:ring-blue-500"/>
-                    </td>
-                    <td className="px-2 py-1.5">
-                      <input type="number" value={r.tien_thuong}
-                        onChange={e=>upd(i,'tien_thuong',e.target.value)}
-                        className="w-full px-2 py-1 border border-gray-300 rounded text-xs text-right focus:outline-none focus:ring-1 focus:ring-blue-500"/>
-                    </td>
-                    <td className="px-3 py-2 text-right font-mono text-xs font-bold text-blue-700">
-                      {fmtN(r.tong_thu_nhap)}
-                    </td>
-                    <td className="px-3 py-2 text-right font-mono text-xs text-orange-600">
-                      {fmtN(r.tru_bhxh)}
-                    </td>
-                    <td className="px-3 py-2 text-right font-mono text-xs text-orange-600">
-                      {fmtN(r.tru_bhyt)}
-                    </td>
-                    <td className="px-3 py-2 text-right font-mono text-xs text-orange-600">
-                      {fmtN(r.tru_bhtn)}
-                    </td>
-                    <td className="px-3 py-2 text-right font-mono text-xs font-bold text-green-700">
-                      {fmtN(r.thuc_lanh)}
+                    {['so_luong_sp','tien_luong_sp','so_cong','luong_thoi_gian',
+                      'tien_luong_nghi','pc_tu_quy_luong','phu_cap_khac','tien_thuong'].map(f=>(
+                      <td key={f} className="px-1 py-1">
+                        <input type="number" value={d[f]||0} onChange={e=>setEditRow(i,f,e.target.value)}
+                          className="w-full px-1.5 py-1 border border-gray-300 rounded text-xs text-right"/>
+                      </td>
+                    ))}
+                    <td className="px-1 py-1 text-center">
+                      <button onClick={()=>removeEditRow(i)}
+                        className="text-red-400 hover:text-red-600 text-sm font-bold">✕</button>
                     </td>
                   </tr>
                 ))}
               </tbody>
-              <tfoot className="bg-gray-100 border-t-2 border-gray-300">
-                <tr>
-                  <td colSpan={5} className="px-3 py-2.5 font-bold text-sm">TỔNG CỘNG</td>
-                  <td className="px-3 py-2.5 text-right font-mono font-bold text-blue-700">
-                    {fmtN(tongThuNhap)}
-                  </td>
-                  <td colSpan={3} className="px-3 py-2.5 text-right font-mono font-bold text-orange-600">
-                    {fmtN(tongTru)}
-                  </td>
-                  <td className="px-3 py-2.5 text-right font-mono font-bold text-green-700">
-                    {fmtN(tongThucLanh)}
-                  </td>
-                </tr>
-              </tfoot>
             </table>
           </div>
-        }
-      </Card>
-
-      {/* Tổng kết + nút lưu */}
-      <div className="flex items-center justify-between">
-        <div className="flex gap-6 text-sm">
-          <div className="p-3 bg-blue-50 rounded-lg border border-blue-200 text-center min-w-32">
-            <div className="text-xs text-gray-500 mb-1">Tổng Thu Nhập</div>
-            <div className="font-bold font-mono text-blue-700">{fmt(tongThuNhap)}</div>
-          </div>
-          <div className="p-3 bg-orange-50 rounded-lg border border-orange-200 text-center min-w-32">
-            <div className="text-xs text-gray-500 mb-1">Tổng Giảm Trừ</div>
-            <div className="font-bold font-mono text-orange-600">{fmt(tongTru)}</div>
-          </div>
-          <div className="p-3 bg-green-50 rounded-lg border border-green-200 text-center min-w-32">
-            <div className="text-xs text-gray-500 mb-1">Thực Lãnh</div>
-            <div className="font-bold font-mono text-green-700 text-lg">{fmt(tongThucLanh)}</div>
-          </div>
         </div>
-        <div className="flex gap-3">
-          <Btn v="outline" onClick={()=>setTab('list')}>Hủy</Btn>
-          <Btn v="success" onClick={save}>💾 Lưu Chứng Từ Lương</Btn>
+
+        <div className="flex justify-end gap-2">
+          <Btn onClick={()=>setEditOpen(false)}>Hủy</Btn>
+          <Btn v="success" onClick={saveEdit} disabled={editSaving}>
+            {editSaving?'⏳ Đang lưu...':'💾 Lưu'}
+          </Btn>
         </div>
       </div>
-    </div>}
+      }
+    </Modal>
   </div>)
 }
 
@@ -5880,16 +5888,6 @@ const HTKFixed=()=>{
   </div>)
 }
 
-const PayrollPage=()=>{
-  const [data,loading]=useList('/payroll')
-  return(<Card><CH><h3 className="font-bold">👥 Chứng Từ Thanh Toán Lương</h3><div className="ml-auto flex gap-2"><Btn size="sm">+ Tạo CTL</Btn><Btn v="excel" size="sm">⬇ Bảng Lương</Btn></div></CH>
-    <Tbl data={data} loading={loading} empty="Chưa có chứng từ lương" cols={[
-      {k:'so_chung_tu',l:'Số CT',w:'130px',fn:v=><Code v={v}/>},{k:'ngay_chung_tu',l:'Ngày',w:'100px',fn:v=>fmtDate(v)},
-      {k:'tong_thu_nhap',l:'Tổng Thu Nhập',r:true,fn:v=>fmt(v)},{k:'tong_giam_tru',l:'Tổng Giảm Trừ',r:true,fn:v=><span className="text-red-600">{fmt(v)}</span>},
-      {k:'tong_thuc_lanh',l:'Thực Lãnh',r:true,fn:v=><span className="text-green-700 font-bold">{fmt(v)}</span>},{k:'trang_thai',l:'TT',w:'90px',fn:v=><Badge v="warning">{v||'DRAFT'}</Badge>},
-    ]}/>
-  </Card>)
-}
 
 const PayrollConfig=()=>{
   const [form,setForm]=useState({ty_le_bhxh:8,ty_le_bhyt:1.5,ty_le_bhtn:1,luong_co_so:2340000,giam_tru_gia_canh:11000000,giam_tru_phu_thuoc:4400000})
@@ -6858,7 +6856,7 @@ const App=()=>{
           if(pg==='nv-bl'&&id) setAutoOpenBlId(id)
         }}/>
       case 'nv-htk': return <HTKFixed/>
-      case 'nv-payroll': return <PayrollPageFixed/>
+      case 'nv-payroll': return <PayrollPage/>
       case 'nv-payroll-config': return <PayrollConfig/>
       case 'rpt-tonkho': return <RptTonKho/>
       case 'rpt-nhapxuat': return <RptNhapXuat/>
