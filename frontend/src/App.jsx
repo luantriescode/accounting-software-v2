@@ -2058,7 +2058,7 @@ const PayrollPage=()=>{
         <h3 className="font-bold">👥 Chứng Từ Thanh Toán Lương</h3>
         <div className="ml-auto flex gap-2">
           <Btn v="excel" size="sm" onClick={()=>exportExcel(
-              'BangLuong',`Bảng Lương`,
+                'Bang Luong',`Bảng Lương`,
               ['Số CT','Ngày','Kỳ KT','Tổng Thu Nhập','Tổng Giảm Trừ','Thực Lãnh','Trạng Thái'],
               filteredData.map(r=>[
                 r.so_chung_tu,
@@ -2133,8 +2133,7 @@ const PayrollPage=()=>{
                 if(!detail||detail.__error){return}
                 const kyName=kyList.find(k=>String(k.id)===String(r.ky_ke_toan_id))?.TenKy||r.ky_ke_toan_id
                 exportExcel(
-                    `BL_${r.so_chung_tu}`.slice(0,31),
-                    `Bảng Lương — ${r.so_chung_tu} — ${kyName}`,
+                  'Bang Luong Chi Tiet',`Bảng Lương`,
                   ['Mã NV','Họ Tên','Chức Vụ','Phòng Ban','Lương SP','Số Công','Lương TG',
                   'Lương Nghỉ','PC Quỹ','PC Khác','Thưởng','Tổng TN','BHXH','BHYT','BHTN','Tổng KT','Thực Lãnh'],
                   (detail.details||[]).map(d=>[
