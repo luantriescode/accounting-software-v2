@@ -5601,6 +5601,7 @@ const HTKFixed=()=>{
   const [result,setResult]=useState(null)
   const [loadingResult,setLoadingResult]=useState(false)
   const [loading,setLoading]=useState(false)
+  const [calcedMethod,setCalcedMethod]=useState('')
   const [lastCalc,setLastCalc]=useState('')
   const [alert,showAlert,closeAlert]=useAlert()
   const [warehouses,setWarehouses]=useState([])
@@ -5682,6 +5683,7 @@ const HTKFixed=()=>{
       setLastCalc(r.generated_at
         ?new Date(r.generated_at).toLocaleString('vi-VN')
         :'Đã tính')
+      setCalcedMethod(method||valMethod)
     }
     setLoadingResult(false)
   }
@@ -5741,7 +5743,7 @@ const HTKFixed=()=>{
             {' '}({kySelected.NgayBatDau} → {kySelected.NgayKetThuc})
           </p>
           {lastCalc
-            ?<p className="text-xs text-green-600">✅ Đã tính: <strong>{lastCalc}</strong></p>
+            ?<p className="text-xs text-green-600">✅ Đã tính: <strong>{calcedMethod}</strong> — <strong>{lastCalc}</strong></p>
             :<p className="text-xs text-orange-500">⚠️ Kỳ này chưa tính giá HTK</p>
           }
         </div>}
@@ -5760,7 +5762,7 @@ const HTKFixed=()=>{
     {/* ── PHẦN XEM KẾT QUẢ ── */}
     {result&&!loadingResult&&<Card>
       <CH>
-        <h3 className="font-bold">📊 Kết Quả HTK — {valMethod} — {kySelected?.TenKy||kySelected?.period_name||''}</h3>
+        <h3 className="font-bold">📊 Kết Quả HTK — {calcedMethod||valMethod} — {kySelected?.TenKy||kySelected?.period_name||''}</h3>
         <div className="ml-auto flex gap-2">
           <Btn v="excel" size="sm" onClick={()=>exportExcel(
             'HTK',`Tính Giá HTK ${valMethod}`,

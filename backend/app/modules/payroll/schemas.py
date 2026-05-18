@@ -44,17 +44,27 @@ class PayrollDetailCreate(BaseModel):
 class PayrollDetailResponse(BaseModel):
     id: int
     employee_id: int
-    so_luong_sp: int
-    tien_luong_sp: float
-    so_cong: float
-    luong_thoi_gian: float
-    tong_tien: float
-    tru_bhxh: float
-    tru_bhyt: float
-    tru_bhtn: float
-    tru_thue_tncn: float
-    tong_tru: float
-    thuc_lanh: float
+    ma_nv: Optional[str] = None
+    ten_nv: Optional[str] = None
+    chuc_vu: Optional[str] = None
+    phong_ban: Optional[str] = None
+    he_so_luong: float = 1.0
+    so_luong_sp: int = 0
+    tien_luong_sp: float = 0
+    so_cong: float = 0
+    luong_thoi_gian: float = 0
+    cong_nghi_tinh_luong: float = 0
+    tien_luong_nghi: float = 0
+    pc_tu_quy_luong: float = 0
+    phu_cap_khac: float = 0
+    tien_thuong: float = 0
+    tong_tien: float = 0
+    tru_bhxh: float = 0
+    tru_bhyt: float = 0
+    tru_bhtn: float = 0
+    tru_thue_tncn: float = 0
+    tong_tru: float = 0
+    thuc_lanh: float = 0
 
 
 # ============ PAYROLL MASTER ============
@@ -70,11 +80,19 @@ class PayrollResponse(BaseModel):
     so_chung_tu: str
     ngay_chung_tu: date
     ky_ke_toan_id: int
+    dien_giai: Optional[str] = None
     tong_thu_nhap: float
     tong_giam_tru: float
     tong_thuc_lanh: float
     trang_thai: str
+    details: Optional[list[PayrollDetailResponse]] = None
 
+class PayrollUpdate(BaseModel):
+    so_chung_tu: str
+    ngay_chung_tu: date
+    ky_ke_toan_id: int
+    dien_giai: Optional[str] = None
+    details: list[PayrollDetailCreate]
 
 # ============ PAYROLL CONFIG ============
 class PayrollConfigUpdate(BaseModel):

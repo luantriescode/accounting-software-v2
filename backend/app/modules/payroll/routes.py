@@ -7,10 +7,9 @@ from app.database import get_db
 from app.modules.payroll.models import Employee, PayrollMaster, PayrollDetail, PayrollConfig
 from app.modules.payroll.schemas import (
     EmployeeCreate, EmployeeResponse,
-    PayrollCreate, PayrollResponse, PayrollDetailResponse,
+    PayrollCreate, PayrollUpdate, PayrollResponse, PayrollDetailResponse,
     PayrollConfigUpdate, PayrollConfigResponse
 )
-
 router = APIRouter(tags=["Lương & BHXH | Payroll"])
 
 
@@ -200,17 +199,127 @@ def get_payroll_detail(id: int, db: Session = Depends(get_db)):
     payroll = db.query(PayrollMaster).filter(PayrollMaster.id == id).first()
     if not payroll:
         raise HTTPException(404, "Chứng từ lương không tìm thấy")
+    details = db.query(PayrollDetail).filter(PayrollDetail.payroll_id == id).all()
+    detail_list = []
+    for d in details:
+        emp = db.query(Employee).filter(Employee.id == d.employee_id).first()
+        detail_list.append(PayrollDetailResponse(
+            id=d.id,
+            employee_id=d.employee_id,
+            ma_nv=emp.ma_nv if emp else None,
+            ten_nv=emp.ten_nv if emp else None,
+            chuc_vu=emp.chuc_vu if emp else None,
+            phong_ban=emp.phong_ban if emp else None,
+            he_so_luong=float(d.he_so_luong or 1),
+            so_luong_sp=d.so_luong_sp or 0,
+            tien_luong_sp=float(d.tien_luong_sp or 0),
+            so_cong=float(d.so_cong or 0),
+            luong_thoi_gian=float(d.luong_thoi_gian or 0),
+            cong_nghi_tinh_luong=float(d.cong_nghi_tinh_luong or 0),
+            tien_luong_nghi=float(d.tien_luong_nghi or 0),
+            pc_tu_quy_luong=float(d.pc_tu_quy_luong or 0),
+            phu_cap_khac=float(d.phu_cap_khac or 0),
+            tien_thuong=float(d.tien_thuong or 0),
+            tong_tien=float(d.tong_tien or 0),
+            tru_bhxh=float(d.tru_bhxh or 0),
+            tru_bhyt=float(d.tru_bhyt or 0),
+            tru_bhtn=float(d.tru_bhtn or 0),
+            tru_thue_tncn=float(d.tru_thue_tncn or 0),
+            tong_tru=float(d.tong_tru or 0),
+            thuc_lanh=float(d.thuc_lanh or 0),
+        ))
     return PayrollResponse(
         id=payroll.id,
         so_chung_tu=payroll.so_chung_tu,
         ngay_chung_tu=payroll.ngay_chung_tu,
         ky_ke_toan_id=payroll.period_id,
+        dien_giai=payroll.dien_giai,
         tong_thu_nhap=float(payroll.tong_thu_nhap),
         tong_giam_tru=float(payroll.tong_giam_tru),
         tong_thuc_lanh=float(payroll.tong_thuc_lanh),
-        trang_thai=payroll.trang_thai
+        trang_thai=payroll.trang_thai,
+        details=detail_list
     )
 
+
+@router.put("/payroll/{id}", response_model=PayrollResponse)
+def update_payroll(id: int, data: PayrollUpdate, db: Session = Depends(get_db)):
+    payroll = db.query(PayrollMaster).filter(PayrollMaster.id == id).first()
+    if not payroll:
+        raise HTTPException(404, "Chứng từ lương không tìm thấy")
+    if payroll.trang_thai == "POSTED":
+        raise HTTPException(400, "Không thể sửa chứng từ đã ghi sổ")
+
+    # Cập nhật master
+    payroll.so_chung_tu = data.so_chung_tu
+    payroll.ngay_chung_tu = data.ngay_chung_tu
+    payroll.period_id = data.ky_ke_toan_id
+    payroll.dien_giai = data.dien_giai
+
+    # Xóa details cũ
+    db.query(PayrollDetail).filter(PayrollDetail.payroll_id == id).delete()
+
+    config = db.query(PayrollConfig).first()
+    if not config:
+        config = PayrollConfig()
+        db.add(config)
+        db.flush()
+
+    tong_thu_nhap = 0
+    tong_giam_tru = 0
+
+    for detail_data in data.details:
+        emp = db.query(Employee).filter(Employee.id == detail_data.employee_id).first()
+        if not emp:
+            raise HTTPException(404, f"Không tìm thấy nhân viên ID={detail_data.employee_id}")
+
+        tong_tien = (
+            float(detail_data.tien_luong_sp or 0) +
+            float(detail_data.luong_thoi_gian or 0) +
+            float(detail_data.tien_luong_nghi or 0) +
+            float(detail_data.pc_tu_quy_luong or 0) +
+            float(detail_data.phu_cap_khac or 0) +
+            float(detail_data.tien_thuong or 0)
+        )
+
+        luong_cb = float(emp.luong_co_ban or 0)
+        tru_bhxh = round(luong_cb * float(config.ty_le_bhxh or 8) / 100)
+        tru_bhyt = round(luong_cb * float(config.ty_le_bhyt or 1.5) / 100)
+        tru_bhtn = round(luong_cb * float(config.ty_le_bhtn or 1) / 100)
+        tong_tru = tru_bhxh + tru_bhyt + tru_bhtn
+
+        detail = PayrollDetail(
+            payroll_id=payroll.id,
+            employee_id=detail_data.employee_id,
+            he_so_luong=emp.he_so_luong,
+            so_luong_sp=detail_data.so_luong_sp or 0,
+            tien_luong_sp=detail_data.tien_luong_sp or 0,
+            so_cong=detail_data.so_cong or 0,
+            luong_thoi_gian=detail_data.luong_thoi_gian or 0,
+            cong_nghi_tinh_luong=detail_data.cong_nghi_tinh_luong or 0,
+            tien_luong_nghi=detail_data.tien_luong_nghi or 0,
+            pc_tu_quy_luong=detail_data.pc_tu_quy_luong or 0,
+            phu_cap_khac=detail_data.phu_cap_khac or 0,
+            tien_thuong=detail_data.tien_thuong or 0,
+            tong_tien=tong_tien,
+            tru_bhxh=tru_bhxh,
+            tru_bhyt=tru_bhyt,
+            tru_bhtn=tru_bhtn,
+            tru_thue_tncn=0,
+            tong_tru=tong_tru,
+            thuc_lanh=tong_tien - tong_tru
+        )
+        db.add(detail)
+        tong_thu_nhap += tong_tien
+        tong_giam_tru += tong_tru
+
+    payroll.tong_thu_nhap = tong_thu_nhap
+    payroll.tong_giam_tru = tong_giam_tru
+    payroll.tong_thuc_lanh = tong_thu_nhap - tong_giam_tru
+
+    db.commit()
+    db.refresh(payroll)
+    return get_payroll_detail(payroll.id, db)
 
 # ============ CẤU HÌNH BẢO HIỂM ============
 @router.get("/payroll-config", response_model=PayrollConfigResponse)
