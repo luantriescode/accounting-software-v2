@@ -198,52 +198,60 @@ def generate_inventory_report(
     valuation_method: str = Query("AVG", description="AVG hoặc FIFO"),
     db: Session = Depends(get_db)
 ):
-    """
-    Xuất báo cáo tồn kho
-    
-    Query:
-    /inventory/bao-cao-ton-kho?period_from=2026-04-29&period_to=2026-04-30&valuation_method=AVG
-    
-    FIX: Sử dụng >= và <= để tìm tất cả dữ liệu trong range
-    """
-    
     from datetime import datetime as dt
+    from sqlalchemy import func
+
     period_from_date = dt.strptime(period_from, "%Y-%m-%d").date()
     period_to_date = dt.strptime(period_to, "%Y-%m-%d").date()
-    
-    # FIX: Dùng >= và <= thay vì ==
-    # Lấy tất cả kết quả có period_from >= input_from và period_to <= input_to
-    filters = [
-        InventoryValuationResult.period_from >= period_from_date,
-        InventoryValuationResult.period_to <= period_to_date,
+
+    # Subquery: lấy calculated_at mới nhất cho mỗi (product_id, warehouse_id)
+    subq = db.query(
+        InventoryValuationResult.product_id,
+        InventoryValuationResult.warehouse_id,
+        func.max(InventoryValuationResult.calculated_at).label('max_calc')
+    ).filter(
+        InventoryValuationResult.period_from == period_from_date,
+        InventoryValuationResult.period_to == period_to_date,
         InventoryValuationResult.valuation_method == valuation_method
-    ]
-    
+    )
+
     if warehouse_id:
-        filters.append(InventoryValuationResult.warehouse_id == warehouse_id)
+        subq = subq.filter(InventoryValuationResult.warehouse_id == warehouse_id)
     if product_id:
-        filters.append(InventoryValuationResult.product_id == product_id)
-    
-    results = db.query(InventoryValuationResult).filter(and_(*filters)).all()
-    
+        subq = subq.filter(InventoryValuationResult.product_id == product_id)
+
+    subq = subq.group_by(
+        InventoryValuationResult.product_id,
+        InventoryValuationResult.warehouse_id
+    ).subquery()
+
+    # Lấy records khớp với subquery
+    results = db.query(InventoryValuationResult).join(
+        subq,
+        and_(
+            InventoryValuationResult.product_id == subq.c.product_id,
+            InventoryValuationResult.warehouse_id == subq.c.warehouse_id,
+            InventoryValuationResult.calculated_at == subq.c.max_calc
+        )
+    ).filter(
+        InventoryValuationResult.period_from == period_from_date,
+        InventoryValuationResult.period_to == period_to_date,
+        InventoryValuationResult.valuation_method == valuation_method
+    ).all()
+
     if not results:
         raise HTTPException(404, f"Không tìm thấy dữ liệu từ {period_from} đến {period_to}")
-    
-    # Tạo báo cáo
+
     rows = []
-    total_opening_qty = 0
-    total_opening_value = 0
-    total_import_qty = 0
-    total_import_value = 0
-    total_export_qty = 0
-    total_export_value = 0
-    total_closing_qty = 0
-    total_closing_value = 0
-    
+    total_opening_qty = total_opening_value = 0
+    total_import_qty = total_import_value = 0
+    total_export_qty = total_export_value = 0
+    total_closing_qty = total_closing_value = 0
+
     for result in results:
         product = db.query(Product).filter(Product.id == result.product_id).first()
         warehouse = db.query(Warehouse).filter(Warehouse.id == result.warehouse_id).first()
-        
+
         row = InventoryReportRow(
             product_code=product.code if product else "",
             product_name=product.name if product else "",
@@ -260,18 +268,17 @@ def generate_inventory_report(
             don_gia=float(result.unit_price)
         )
         rows.append(row)
-        
-        # Cộng tổng
-        total_opening_qty += float(result.opening_qty)
-        total_opening_value += float(result.opening_value)
-        total_import_qty += float(result.import_qty)
+
+        total_opening_qty  += float(result.opening_qty)
+        total_opening_value+= float(result.opening_value)
+        total_import_qty   += float(result.import_qty)
         total_import_value += float(result.import_value)
-        total_export_qty += float(result.export_qty)
+        total_export_qty   += float(result.export_qty)
         total_export_value += float(result.export_value)
-        total_closing_qty += float(result.closing_qty)
-        total_closing_value += float(result.closing_value)
-    
-    report = InventoryReport(
+        total_closing_qty  += float(result.closing_qty)
+        total_closing_value+= float(result.closing_value)
+
+    return InventoryReport(
         report_title=f"BÁO CÁO TỒN KHO ({valuation_method}) từ {period_from} đến {period_to}",
         period_from=period_from_date,
         period_to=period_to_date,
@@ -287,5 +294,3 @@ def generate_inventory_report(
         total_closing_qty=total_closing_qty,
         total_closing_value=total_closing_value
     )
-    
-    return report

@@ -1900,116 +1900,8 @@ const WarehouseIssuePage=({autoOpenPxkId=null,onAutoOpenDone=null,onNav=null})=>
     </Card>}
   </div>)
 }
-// ══ HTK với Excel
-const HTKFixed = () => {
-  const [form, setForm] = useState({ period_from: '2026-04-01', period_to: '2026-04-30', valuation_method: 'AVG', group_by: 'product' })
-  const [result, setResult] = useState(null); const [loading, setLoading] = useState(false)
-  const [tab2, setTab2] = useState('result'); const [alert, showAlert, closeAlert] = useAlert()
-  const sf = k => e => setForm(f => ({ ...f, [k]: e.target.value }))
 
-  const calc = async () => {
-    setLoading(true)
-    const r = await api('POST', '/inventory/tinh-gia-htk', form)
-    if (r) { setResult(r); showAlert(`Tính giá HTK ${form.valuation_method} thành công!`) }
-    else showAlert('Lỗi tính giá HTK!', 'danger')
-    setLoading(false)
-  }
 
-  const doExcel = () => {
-    if (!result) return
-    exportExcel(`TinhGiaHTK_${form.valuation_method}`, 'Tính Giá HTK',
-      ['Mã SP', 'Tên SP', 'ĐK-SL', 'ĐK-GT', 'Nhập-SL', 'Nhập-GT', 'Xuất-SL', 'Xuất-GT', 'CK-SL', 'CK-GT', 'Đơn Giá'],
-      (result.details || []).map(d => [
-        d.product_code, d.product_name,
-        d.opening_qty, d.opening_value,
-        d.import_qty, d.import_value,
-        d.export_qty, d.export_value,
-        d.closing_qty, d.closing_value,
-        d.unit_price,
-      ])
-    )
-  }
-
-  return (
-    <div className="space-y-4">
-      {alert && <Alert msg={alert.msg} type={alert.type} onClose={closeAlert} />}
-      <Card><CH><h3 className="font-bold">⚖️ Tính Giá Tồn Kho</h3></CH>
-        <CB><div className="grid grid-cols-4 gap-3">
-          <Sel label="Cách Tính" req value={form.valuation_method} onChange={sf('valuation_method')} options={[{ value: 'AVG', label: 'AVG - Bình quân' }, { value: 'FIFO', label: 'FIFO - Nhập trước xuất trước' }]} />
-          <Inp label="Từ Tháng" req type="date" value={form.period_from} onChange={sf('period_from')} />
-          <Inp label="Đến Tháng" req type="date" value={form.period_to} onChange={sf('period_to')} />
-          <div className="flex items-end"><Btn onClick={calc} disabled={loading} className="w-full justify-center">⚡ {loading ? 'Đang tính...' : 'Tính Giá HTK'}</Btn></div>
-        </div></CB>
-      </Card>
-      {result && (
-        <div>
-          <Tabs tabs={[{ id: 'result', label: '📊 Kết Quả' }, { id: 'report', label: '📄 Xuất BC' }]} active={tab2} onChange={setTab2} />
-          {tab2 === 'result' && (
-            <Card>
-              <CH>
-                <h3 className="font-bold">📊 Bảng Tính Giá HTK - {form.valuation_method}</h3>
-                <div className="ml-auto"><Btn v="excel" size="sm" onClick={doExcel}>⬇ Excel</Btn></div>
-              </CH>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50 border-b-2 border-gray-200">
-                    <tr>
-                      <th className="px-3 py-2 text-left text-xs font-bold uppercase" rowSpan={2}>Mã SP</th>
-                      <th className="px-3 py-2 text-left text-xs font-bold uppercase" rowSpan={2}>Tên SP</th>
-                      <th className="px-3 py-2 text-center text-xs font-bold text-blue-700 bg-blue-50 uppercase" colSpan={2}>Đầu Kỳ</th>
-                      <th className="px-3 py-2 text-center text-xs font-bold text-green-700 bg-green-50 uppercase" colSpan={2}>Nhập</th>
-                      <th className="px-3 py-2 text-center text-xs font-bold text-red-700 bg-red-50 uppercase" colSpan={2}>Xuất</th>
-                      <th className="px-3 py-2 text-center text-xs font-bold text-yellow-700 bg-yellow-50 uppercase" colSpan={2}>Cuối Kỳ</th>
-                      <th className="px-3 py-2 text-right text-xs font-bold uppercase" rowSpan={2}>Đơn Giá</th>
-                    </tr>
-                    <tr>
-                      {['SL', 'GT', 'SL', 'GT', 'SL', 'GT', 'SL', 'GT'].map((h, i) => (
-                        <th key={i} className={`px-3 py-1 text-xs font-semibold text-right ${i < 2 ? 'bg-blue-50 text-blue-600' : i < 4 ? 'bg-green-50 text-green-600' : i < 6 ? 'bg-red-50 text-red-600' : 'bg-yellow-50 text-yellow-600'}`}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {(result.details || []).map((d, i) => (
-                      <tr key={i} className="hover:bg-gray-50">
-                        <td className="px-3 py-2"><Code v={d.product_code} /></td>
-                        <td className="px-3 py-2 font-medium">{d.product_name}</td>
-                        <td className="px-3 py-2 text-right font-mono text-xs">{d.opening_qty}</td><td className="px-3 py-2 text-right font-mono text-xs">{fmtN(d.opening_value)}</td>
-                        <td className="px-3 py-2 text-right font-mono text-xs">{d.import_qty}</td><td className="px-3 py-2 text-right font-mono text-xs">{fmtN(d.import_value)}</td>
-                        <td className="px-3 py-2 text-right font-mono text-xs">{d.export_qty}</td><td className="px-3 py-2 text-right font-mono text-xs">{fmtN(d.export_value)}</td>
-                        <td className="px-3 py-2 text-right font-mono text-xs font-bold">{d.closing_qty}</td>
-                        <td className="px-3 py-2 text-right font-mono text-xs font-bold text-blue-700">{fmtN(d.closing_value)}</td>
-                        <td className="px-3 py-2 text-right font-mono text-xs">{fmtN(d.unit_price)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot className="bg-gray-100 border-t-2 border-gray-300">
-                    <tr>
-                      <td colSpan={2} className="px-3 py-2.5 font-bold">TỔNG CỘNG</td>
-                      <td className="px-3 py-2.5 text-right font-mono font-bold">{result.total_opening_qty || '-'}</td>
-                      <td className="px-3 py-2.5 text-right font-mono font-bold">{fmtN(result.total_opening_value)}</td>
-                      <td className="px-3 py-2.5 text-right font-mono font-bold">{result.total_import_qty || '-'}</td>
-                      <td className="px-3 py-2.5 text-right font-mono font-bold">{fmtN(result.total_import_value)}</td>
-                      <td className="px-3 py-2.5 text-right font-mono font-bold">{result.total_export_qty || '-'}</td>
-                      <td className="px-3 py-2.5 text-right font-mono font-bold">{fmtN(result.total_export_value)}</td>
-                      <td className="px-3 py-2.5 text-right font-mono font-bold">{result.total_closing_qty || '-'}</td>
-                      <td className="px-3 py-2.5 text-right font-mono font-bold text-blue-700">{fmtN(result.total_closing_value)}</td>
-                      <td></td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            </Card>
-          )}
-          {tab2 === 'report' && (
-            <Card><CH><h3 className="font-bold">📄 Xuất Báo Cáo HTK</h3>
-              <div className="ml-auto"><Btn v="excel" onClick={doExcel}>⬇ Xuất Excel</Btn></div>
-            </CH><CB><Alert msg="ℹ️ Nhấn nút Xuất Excel để tải file về máy." type="info" /></CB></Card>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
 
 // ══ THANH TOÁN LƯƠNG - Tạo CTL + Tính lương + Xuất Excel
 const PayrollPageFixed=()=>{
@@ -5702,58 +5594,287 @@ const WarehouseDocs=({type})=>{
 }
 
 // TÍNH GIÁ HTK - API: period_from, period_to, valuation_method
-const HTK=()=>{
-  const [form,setForm]=useState({period_from:'2026-04-01',period_to:'2026-04-30',valuation_method:'AVG',group_by:'product'})
-  const [result,setResult]=useState(null); const [loading,setLoading]=useState(false)
-  const [tab2,setTab2]=useState('result'); const [alert,showAlert,closeAlert]=useAlert()
-  const sf=k=>e=>setForm(f=>({...f,[k]:e.target.value}))
-  const calc=async()=>{ setLoading(true); const r=await api('POST','/inventory/tinh-gia-htk',form); if(r){setResult(r);showAlert(`Tính giá HTK ${form.valuation_method} thành công!`)}else showAlert('Lỗi tính giá HTK!','danger'); setLoading(false) }
-  return(<div className="space-y-4">{alert&&<Alert msg={alert.msg} type={alert.type} onClose={closeAlert}/>}
-    <Card><CH><h3 className="font-bold">⚖️ Tính Giá Tồn Kho</h3></CH>
-      <CB><div className="grid grid-cols-4 gap-3">
-        <Sel label="Cách Tính" req value={form.valuation_method} onChange={sf('valuation_method')} options={[{value:'AVG',label:'AVG - Bình quân'},{value:'FIFO',label:'FIFO - Nhập trước xuất trước'}]}/>
-        <Inp label="Từ Tháng" req type="date" value={form.period_from} onChange={sf('period_from')}/>
-        <Inp label="Đến Tháng" req type="date" value={form.period_to} onChange={sf('period_to')}/>
-        <div className="flex items-end"><Btn onClick={calc} disabled={loading} className="w-full justify-center">⚡ {loading?'Đang tính...':'Tính Giá HTK'}</Btn></div>
-      </div></CB>
+const HTKFixed=()=>{
+  const {kyList,options:kyOptions,defaultKy}=useKyKeToan()
+  const [selKy,setSelKy]=useState(null)
+  const [valMethod,setValMethod]=useState('AVG')
+  const [result,setResult]=useState(null)
+  const [loadingResult,setLoadingResult]=useState(false)
+  const [loading,setLoading]=useState(false)
+  const [lastCalc,setLastCalc]=useState('')
+  const [alert,showAlert,closeAlert]=useAlert()
+  const [warehouses,setWarehouses]=useState([])
+  const [products,setProducts]=useState([])
+  const [filterKho,setFilterKho]=useState('')
+  const [filterSP,setFilterSP]=useState('')
+  const [filterNhom,setFilterNhom]=useState('')
+
+  useEffect(()=>{
+    api('GET','/warehouses').then(d=>setWarehouses(Array.isArray(d)?d:[]))
+    api('GET','/products').then(d=>setProducts(Array.isArray(d)?d:[]))
+  },[])
+
+  // Auto-set kỳ hiện tại khi kyList load xong
+  useEffect(()=>{
+    if(kyList.length>0&&!selKy){
+      const today=new Date().toISOString().slice(0,10)
+      const cur=kyList.find(k=>k.NgayBatDau<=today&&k.NgayKetThuc>=today)
+      setSelKy(String(cur?.id||kyList[0].id))
+    }
+  },[kyList])
+
+  // Load kết quả khi selKy thay đổi
+  useEffect(()=>{
+    if(selKy&&kyList.length) loadResult(selKy,valMethod)
+  },[selKy,kyList])
+
+  const calc=async()=>{
+    if(!selKy){showAlert('Vui lòng chọn Kỳ Kế Toán!','danger');return}
+    const ky=kyList.find(k=>String(k.id)===String(selKy))
+    if(!ky){showAlert('Không tìm thấy kỳ kế toán!','danger');return}
+    setLoading(true)
+    const body={
+      period_from: ky.NgayBatDau,
+      period_to: ky.NgayKetThuc,
+      valuation_method: valMethod,
+      group_by: 'product'
+    }
+    console.log('[HTK calc] body=',JSON.stringify(body))
+    const r=await api('POST','/inventory/tinh-gia-htk',body)
+    if(r&&!r.__error){
+      showAlert(`✅ Tính giá HTK ${valMethod} thành công! ${r.details?.length||0} dòng.`)
+      setLastCalc(new Date().toLocaleString('vi-VN'))
+      try{ await loadResult(selKy,valMethod) }catch(e){ console.log('loadResult error:',e) }
+    }else{
+      showAlert('Lỗi tính giá HTK: '+(r?.message||'Lỗi không xác định'),'danger')
+    }
+    setLoading(false)
+  }
+
+  const loadResult=async(kyId,method)=>{
+    const ky=kyList.find(k=>String(k.id)===String(kyId))
+    if(!ky) return
+    setLoadingResult(true)
+    console.log('[loadResult] ky=',ky.TenKy,'from=',ky.NgayBatDau,'to=',ky.NgayKetThuc)
+    const r=await api('GET',
+      `/inventory/bao-cao-ton-kho?period_from=${ky.NgayBatDau}&period_to=${ky.NgayKetThuc}&valuation_method=${method||valMethod}`
+    )
+    console.log('[loadResult] response=',JSON.stringify(r))
+    if(r&&!r.__error&&r.rows?.length){
+      setResult({
+        details: r.rows.map(row=>({
+          product_code: row.product_code,
+          product_name: row.product_name,
+          warehouse_name: row.warehouse_name,
+          opening_qty: row.ton_dau_ky_sl,
+          opening_value: row.ton_dau_ky_gia_tri,
+          import_qty: row.nhap_trong_ky_sl,
+          import_value: row.nhap_trong_ky_gia_tri,
+          export_qty: row.xuat_trong_ky_sl,
+          export_value: row.xuat_trong_ky_gia_tri,
+          closing_qty: row.ton_cuoi_ky_sl,
+          closing_value: row.ton_cuoi_ky_gia_tri,
+          unit_price: row.don_gia,
+          warehouse_id: warehouses.find(w=>w.TenKho===row.warehouse_name||w.name===row.warehouse_name)?.id,
+          product_id: products.find(p=>p.MaHH===row.product_code||p.code===row.product_code)?.id
+        }))
+      })
+      setLastCalc(r.generated_at
+        ?new Date(r.generated_at).toLocaleString('vi-VN')
+        :'Đã tính')
+    }
+    setLoadingResult(false)
+  }
+
+  const filteredDetails=(result?.details||[]).filter(d=>{
+    if(filterKho){
+      const wh=warehouses.find(w=>String(w.id)===String(filterKho))
+      const whName=wh?.TenKho||wh?.name||''
+      if(d.warehouse_name!==whName) return false
+    }
+    if(filterSP){
+      const q=filterSP.toLowerCase()
+      if(!(d.product_code||'').toLowerCase().includes(q)&&
+         !(d.product_name||'').toLowerCase().includes(q)) return false
+    }
+    if(filterNhom){
+      const p=products.find(x=>String(x.id)===String(d.product_id))
+      const nhom=p?.DanhMuc||p?.category||''
+      if(nhom!==filterNhom) return false
+    }
+    return true
+  })
+
+  const filteredTotal=filteredDetails.reduce((acc,d)=>({
+    opening_qty: acc.opening_qty+(+d.opening_qty||0),
+    opening_value: acc.opening_value+(+d.opening_value||0),
+    import_qty: acc.import_qty+(+d.import_qty||0),
+    import_value: acc.import_value+(+d.import_value||0),
+    export_qty: acc.export_qty+(+d.export_qty||0),
+    export_value: acc.export_value+(+d.export_value||0),
+    closing_qty: acc.closing_qty+(+d.closing_qty||0),
+    closing_value: acc.closing_value+(+d.closing_value||0),
+  }),{opening_qty:0,opening_value:0,import_qty:0,import_value:0,
+      export_qty:0,export_value:0,closing_qty:0,closing_value:0})
+
+  const kySelected=kyList.find(k=>String(k.id)===String(selKy))
+
+  return(<div className="space-y-4">
+    {alert&&<Alert msg={alert.msg} type={alert.type} onClose={closeAlert}/>}
+
+    {/* ── PHẦN TÍNH ── */}
+    <Card>
+      <CH><h3 className="font-bold">⚖️ Tính Giá Hàng Tồn Kho</h3></CH>
+      <CB>
+        <div className="grid grid-cols-3 gap-3 items-end">
+          <Sel label="Kỳ Kế Toán" req value={selKy||''} onChange={e=>setSelKy(e.target.value)}
+            options={kyOptions}/>
+          <Sel label="Phương Pháp" req value={valMethod} onChange={e=>setValMethod(e.target.value)}
+            options={[{value:'AVG',label:'AVG — Bình quân gia quyền'},{value:'FIFO',label:'FIFO — Nhập trước xuất trước'}]}/>
+          <Btn onClick={calc} disabled={loading} v="success">
+            {loading?'⏳ Đang tính...':'⚡ Tính Giá HTK'}
+          </Btn>
+        </div>
+        {kySelected&&<div className="flex items-center justify-between mt-2">
+          <p className="text-xs text-gray-500">
+            📅 Kỳ: <strong>{kySelected.TenKy||kySelected.period_name}</strong>
+            {' '}({kySelected.NgayBatDau} → {kySelected.NgayKetThuc})
+          </p>
+          {lastCalc
+            ?<p className="text-xs text-green-600">✅ Đã tính: <strong>{lastCalc}</strong></p>
+            :<p className="text-xs text-orange-500">⚠️ Kỳ này chưa tính giá HTK</p>
+          }
+        </div>}
+      </CB>
     </Card>
-    {result&&(<div>
-      <Tabs tabs={[{id:'result',label:'📊 Kết Quả'},{id:'report',label:'📄 Xuất BC'}]} active={tab2} onChange={setTab2}/>
-      {tab2==='result'&&<Card><CH><h3 className="font-bold">📊 Bảng Tính Giá HTK - {form.valuation_method}</h3>
-        <div className="ml-auto flex gap-2"><Btn v="pdf" size="sm">⬇ PDF</Btn><Btn v="excel" size="sm">⬇ Excel</Btn></div></CH>
-        <div className="overflow-x-auto"><table className="w-full text-sm">
-          <thead className="bg-gray-50 border-b-2 border-gray-200">
-            <tr>
-              <th className="px-3 py-2 text-left text-xs font-bold uppercase" rowSpan={2}>Mã SP</th>
-              <th className="px-3 py-2 text-left text-xs font-bold uppercase" rowSpan={2}>Tên SP</th>
-              <th className="px-3 py-2 text-center text-xs font-bold text-blue-700 bg-blue-50 uppercase" colSpan={2}>Đầu Kỳ</th>
-              <th className="px-3 py-2 text-center text-xs font-bold text-green-700 bg-green-50 uppercase" colSpan={2}>Nhập</th>
-              <th className="px-3 py-2 text-center text-xs font-bold text-red-700 bg-red-50 uppercase" colSpan={2}>Xuất</th>
-              <th className="px-3 py-2 text-center text-xs font-bold text-yellow-700 bg-yellow-50 uppercase" colSpan={2}>Cuối Kỳ</th>
-              <th className="px-3 py-2 text-right text-xs font-bold uppercase" rowSpan={2}>Đơn Giá</th>
-            </tr>
-            <tr>
-              {['SL','GT','SL','GT','SL','GT','SL','GT'].map((h,i)=>(
-                <th key={i} className={`px-3 py-1 text-xs font-semibold text-right ${i<2?'bg-blue-50 text-blue-600':i<4?'bg-green-50 text-green-600':i<6?'bg-red-50 text-red-600':'bg-yellow-50 text-yellow-600'}`}>{h}</th>
+
+    {/* ── LOADING INDICATOR ── */}
+    {loadingResult&&<div className="flex items-center justify-center py-8 gap-3 text-blue-600">
+      <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+      </svg>
+      <span className="text-sm font-medium">Đang tải kết quả HTK...</span>
+    </div>}
+
+    {/* ── PHẦN XEM KẾT QUẢ ── */}
+    {result&&!loadingResult&&<Card>
+      <CH>
+        <h3 className="font-bold">📊 Kết Quả HTK — {valMethod} — {kySelected?.TenKy||kySelected?.period_name||''}</h3>
+        <div className="ml-auto flex gap-2">
+          <Btn v="excel" size="sm" onClick={()=>exportExcel(
+            'HTK',`Tính Giá HTK ${valMethod}`,
+            ['Mã SP','Tên SP','Kho','ĐK SL','ĐK GT','Nhập SL','Nhập GT','Xuất SL','Xuất GT','CK SL','CK GT','Đơn Giá'],
+            filteredDetails.map(d=>[d.product_code,d.product_name,d.warehouse_name,
+              d.opening_qty,d.opening_value,d.import_qty,d.import_value,
+              d.export_qty,d.export_value,d.closing_qty,d.closing_value,d.unit_price])
+          )}>⬇ Excel</Btn>
+        </div>
+      </CH>
+      <CB>
+        <div className="flex gap-3 mb-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+          <div className="flex-1">
+            <label className="text-xs text-gray-500 mb-1 block">🔍 Tìm Sản Phẩm</label>
+            <input value={filterSP} onChange={e=>setFilterSP(e.target.value)}
+              placeholder="Mã hoặc tên SP..."
+              className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs focus:outline-none"/>
+          </div>
+          <div className="w-44">
+            <label className="text-xs text-gray-500 mb-1 block">🏭 Kho</label>
+            <select value={filterKho} onChange={e=>setFilterKho(e.target.value)}
+              className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs bg-white focus:outline-none">
+              <option value="">Tất cả kho</option>
+              {warehouses.map(w=><option key={w.id} value={w.id}>{w.TenKho||w.name||w.MaKho||w.code}</option>)}
+            </select>
+          </div>
+          <div className="w-44">
+            <label className="text-xs text-gray-500 mb-1 block">📂 Nhóm SP</label>
+            <select value={filterNhom} onChange={e=>setFilterNhom(e.target.value)}
+              className="w-full px-2 py-1.5 border border-gray-300 rounded text-xs bg-white focus:outline-none">
+              <option value="">Tất cả nhóm</option>
+              {[...new Set(products.map(p=>p.DanhMuc||p.category||'').filter(Boolean))].map(nhom=>(
+                <option key={nhom} value={nhom}>{nhom}</option>
               ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {(result.details||[]).map((d,i)=>(
-              <tr key={i} className="hover:bg-gray-50">
-                <td className="px-3 py-2"><Code v={d.product_code}/></td><td className="px-3 py-2 font-medium">{d.product_name}</td>
-                <td className="px-3 py-2 text-right font-mono text-xs">{d.opening_qty}</td><td className="px-3 py-2 text-right font-mono text-xs">{fmtN(d.opening_value)}</td>
-                <td className="px-3 py-2 text-right font-mono text-xs">{d.import_qty}</td><td className="px-3 py-2 text-right font-mono text-xs">{fmtN(d.import_value)}</td>
-                <td className="px-3 py-2 text-right font-mono text-xs">{d.export_qty}</td><td className="px-3 py-2 text-right font-mono text-xs">{fmtN(d.export_value)}</td>
-                <td className="px-3 py-2 text-right font-mono text-xs font-bold">{d.closing_qty}</td><td className="px-3 py-2 text-right font-mono text-xs font-bold text-blue-700">{fmtN(d.closing_value)}</td>
-                <td className="px-3 py-2 text-right font-mono text-xs">{fmtN(d.unit_price)}</td>
+            </select>
+          </div>
+          {(filterKho||filterSP||filterNhom)&&<div className="flex items-end">
+            <button onClick={()=>{setFilterKho('');setFilterSP('');setFilterNhom('')}}
+              className="px-3 py-1.5 text-xs text-gray-500 hover:text-red-500 border border-gray-300 rounded">
+              ✕ Xóa lọc
+            </button>
+          </div>}
+          <div className="flex items-end">
+            <span className="text-xs text-gray-500 whitespace-nowrap">
+              {filteredDetails.length}/{result.details?.length||0} dòng
+            </span>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b-2 border-gray-200">
+              <tr>
+                <th className="px-3 py-2 text-left text-xs font-bold w-24" rowSpan={2}>Mã SP</th>
+                <th className="px-3 py-2 text-left text-xs font-bold" rowSpan={2}>Tên SP</th>
+                <th className="px-3 py-2 text-left text-xs font-bold w-20" rowSpan={2}>Kho</th>
+                <th className="px-3 py-2 text-center text-xs font-bold text-blue-700 bg-blue-50 w-40" colSpan={2}>Đầu Kỳ</th>
+                <th className="px-3 py-2 text-center text-xs font-bold text-green-700 bg-green-50 w-40" colSpan={2}>Nhập</th>
+                <th className="px-3 py-2 text-center text-xs font-bold text-red-700 bg-red-50 w-40" colSpan={2}>Xuất</th>
+                <th className="px-3 py-2 text-center text-xs font-bold text-yellow-700 bg-yellow-50 w-40" colSpan={2}>Cuối Kỳ</th>
+                <th className="px-3 py-2 text-right text-xs font-bold w-28" rowSpan={2}>Đơn Giá</th>
               </tr>
-            ))}
-          </tbody>
-        </table></div>
-      </Card>}
-      {tab2==='report'&&<Card><CH><h3 className="font-bold">📄 Xuất BC HTK</h3><div className="ml-auto flex gap-2"><Btn v="pdf">⬇ PDF</Btn><Btn v="excel">⬇ Excel</Btn></div></CH><CB><Alert msg="ℹ️ Tính giá HTK trước khi xuất." type="info"/></CB></Card>}
-    </div>)}
+              <tr>
+                {[['bg-blue-50 text-blue-600','SL'],['bg-blue-50 text-blue-600','GT'],
+                  ['bg-green-50 text-green-600','SL'],['bg-green-50 text-green-600','GT'],
+                  ['bg-red-50 text-red-600','SL'],['bg-red-50 text-red-600','GT'],
+                  ['bg-yellow-50 text-yellow-600','SL'],['bg-yellow-50 text-yellow-600','GT'],
+                ].map(([cls,h],i)=>(
+                  <th key={i} className={`px-3 py-1 text-xs font-semibold text-right ${cls}`}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {filteredDetails.length===0
+                ?<tr><td colSpan={12} className="px-3 py-8 text-center text-gray-400 text-sm">
+                  {result.details?.length>0?'Không có dữ liệu khớp bộ lọc':'Không có dữ liệu'}
+                </td></tr>
+                :filteredDetails.map((d,i)=>(
+                  <tr key={i} className="hover:bg-gray-50">
+                    <td className="px-3 py-2"><Code v={d.product_code}/></td>
+                    <td className="px-3 py-2 font-medium text-xs">{d.product_name}</td>
+                    <td className="px-3 py-2"><span className="text-xs bg-gray-100 px-1.5 py-0.5 rounded font-mono">{d.warehouse_name}</span></td>
+                    <td className="px-3 py-2 text-right font-mono text-xs">{fmtN(d.opening_qty)}</td>
+                    <td className="px-3 py-2 text-right font-mono text-xs">{fmtN(d.opening_value)}</td>
+                    <td className="px-3 py-2 text-right font-mono text-xs text-green-700">{fmtN(d.import_qty)}</td>
+                    <td className="px-3 py-2 text-right font-mono text-xs text-green-700">{fmtN(d.import_value)}</td>
+                    <td className="px-3 py-2 text-right font-mono text-xs text-red-600">{fmtN(d.export_qty)}</td>
+                    <td className="px-3 py-2 text-right font-mono text-xs text-red-600">{fmtN(d.export_value)}</td>
+                    <td className="px-3 py-2 text-right font-mono text-xs font-bold">{fmtN(d.closing_qty)}</td>
+                    <td className="px-3 py-2 text-right font-mono text-xs font-bold text-blue-700">{fmtN(d.closing_value)}</td>
+                    <td className="px-3 py-2 text-right font-mono text-xs">{fmtN(d.unit_price)}</td>
+                  </tr>
+                ))
+              }
+            </tbody>
+            <tfoot className="bg-gray-100 border-t-2 border-gray-300">
+              <tr>
+                <td colSpan={3} className="px-3 py-2.5 font-bold text-sm text-gray-700">
+                  Tổng {filterKho||filterSP||filterNhom?`(${filteredDetails.length} dòng lọc)`:`(${result.details?.length||0} dòng)`}:
+                </td>
+                <td className="px-3 py-2.5 text-right font-mono font-bold text-xs">{fmtN(filteredTotal.opening_qty)}</td>
+                <td className="px-3 py-2.5 text-right font-mono font-bold text-xs">{fmtN(filteredTotal.opening_value)}</td>
+                <td className="px-3 py-2.5 text-right font-mono font-bold text-xs text-green-700">{fmtN(filteredTotal.import_qty)}</td>
+                <td className="px-3 py-2.5 text-right font-mono font-bold text-xs text-green-700">{fmtN(filteredTotal.import_value)}</td>
+                <td className="px-3 py-2.5 text-right font-mono font-bold text-xs text-red-600">{fmtN(filteredTotal.export_qty)}</td>
+                <td className="px-3 py-2.5 text-right font-mono font-bold text-xs text-red-600">{fmtN(filteredTotal.export_value)}</td>
+                <td className="px-3 py-2.5 text-right font-mono font-bold text-xs">{fmtN(filteredTotal.closing_qty)}</td>
+                <td className="px-3 py-2.5 text-right font-mono font-bold text-xs text-blue-700">{fmtN(filteredTotal.closing_value)}</td>
+                <td></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </CB>
+    </Card>}
   </div>)
 }
 
