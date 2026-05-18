@@ -2133,8 +2133,8 @@ const PayrollPage=()=>{
                 if(!detail||detail.__error){return}
                 const kyName=kyList.find(k=>String(k.id)===String(r.ky_ke_toan_id))?.TenKy||r.ky_ke_toan_id
                 exportExcel(
-                  `BangLuong_${r.so_chung_tu}`,
-                  `Bảng Lương — ${r.so_chung_tu} — ${kyName}`,
+                    `BL_${r.so_chung_tu}`.slice(0,31),
+                    `Bảng Lương — ${r.so_chung_tu} — ${kyName}`,
                   ['Mã NV','Họ Tên','Chức Vụ','Phòng Ban','Lương SP','Số Công','Lương TG',
                   'Lương Nghỉ','PC Quỹ','PC Khác','Thưởng','Tổng TN','BHXH','BHYT','BHTN','Tổng KT','Thực Lãnh'],
                   (detail.details||[]).map(d=>[
